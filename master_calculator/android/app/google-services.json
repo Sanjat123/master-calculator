@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "236224889254",
+    "project_id": "master-calculator-51684",
+    "storage_bucket": "master-calculator-51684.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:236224889254:android:0deb1f6a9963a9e5560f67",
+        "android_client_info": {
+          "package_name": "com.example.master_calculator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "236224889254-sqe6qppp55v41rl0oet1oruqdelmregs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVpNLdAt5hkEi_CYML0FCAzIEwpvh7MPQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "236224889254-sqe6qppp55v41rl0oet1oruqdelmregs.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
