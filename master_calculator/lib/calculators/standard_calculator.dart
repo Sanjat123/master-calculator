@@ -15,15 +15,25 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
   String _result = "0";
   String _expression = "";
   String _memory = "0";
-  String _history = "";
   List<String> _historyList = [];
   bool _isRadians = false;
   bool _showHistory = false;
   String _language = "English";
+  String _mode = "standard"; // standard, scientific, programmer
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late AnimationController _historyAnimationController;
+
+  // Color scheme
+  final Color _primaryColor = const Color(0xFF6366F1);
+  final Color _secondaryColor = const Color(0xFF8B5CF6);
+  final Color _operatorColor = const Color(0xFFF59E0B);
+  final Color _numberColor = const Color(0xFF1E293B);
+  final Color _functionColor = const Color(0xFF10B981);
+  final Color _memoryColor = const Color(0xFF06B6D4);
+  final Color _clearColor = const Color(0xFFEF4444);
+  final Color _equalsColor = const Color(0xFF22C55E);
 
   // Language translations
   Map<String, Map<String, String>> _translations = {
@@ -39,7 +49,7 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
       "clearHistory": "Clear History",
       "noHistory": "No history yet",
       "angleMode": "Angle Mode",
-      "basic": "Basic",
+      "standard": "Standard",
       "scientific": "Scientific",
       "programmer": "Programmer",
     },
@@ -55,8 +65,8 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
       "clearHistory": "इतिहास साफ़ करें",
       "noHistory": "अभी तक कोई इतिहास नहीं",
       "angleMode": "कोण मोड",
-      "basic": "बेसिक",
-      "scientific": "साइंटिफिक",
+      "standard": "मानक",
+      "scientific": "वैज्ञानिक",
       "programmer": "प्रोग्रामर",
     },
   };
@@ -235,7 +245,6 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
           _result = eval.toStringAsFixed(10).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
         }
 
-        // Add to history
         String historyEntry = "$_equation = $_result";
         _historyList.insert(0, historyEntry);
         if (_historyList.length > 20) _historyList.removeLast();
@@ -244,16 +253,6 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
       _result = "Error";
       _showSnackBar(getText("invalidExpression"));
     }
-  }
-
-  int _factorial(int n) {
-    if (n < 0) return 0;
-    if (n == 0 || n == 1) return 1;
-    int result = 1;
-    for (int i = 2; i <= n; i++) {
-      result *= i;
-    }
-    return result;
   }
 
   void _showSnackBar(String message) {
@@ -284,33 +283,36 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
     });
   }
 
-  Widget _buildButton(String text, Color color, {double flex = 1, Color? textColor, double fontSize = 26}) {
+  Widget _buildButton(String text, Color color, {double flex = 1, Color? textColor, double fontSize = 24}) {
     return Expanded(
       flex: flex.toInt(),
       child: Padding(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(5),
         child: GestureDetector(
           onTapDown: (_) => _animationController.forward(),
           onTapUp: (_) => _animationController.reverse(),
           onTapCancel: () => _animationController.reverse(),
           child: ScaleTransition(
             scale: _scaleAnimation,
-            child: Material(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                onTap: () => _buttonPressed(text),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  height: 65,
-                  alignment: Alignment.center,
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: text.length > 2 ? fontSize - 6 : fontSize,
-                      fontWeight: FontWeight.w500,
-                      color: textColor ?? Colors.white,
-                    ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: text.length > 2 ? fontSize - 4 : fontSize,
+                    fontWeight: FontWeight.w600,
+                    color: textColor ?? Colors.white,
                   ),
                 ),
               ),
@@ -324,17 +326,38 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final buttonBgColor = isDark ? Colors.grey.shade800 : Colors.grey.shade200;
-    const accentColor = Color(0xFF6366F1);
-    const operatorColor = Color(0xFF8B5CF6);
-    const memoryColor = Color(0xFF10B981);
+
+    // Button colors based on mode
+    final numberBtnColor = isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9);
+    final numberTextColor = isDark ? Colors.white : const Color(0xFF1E293B);
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(_language == "English" ? "Standard Calculator" : "मानक कैलकुलेटर"),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: Colors.transparent,
         actions: [
+          // Mode Selector
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: DropdownButton<String>(
+              value: _mode,
+              icon: const Icon(Icons.settings_applications),
+              underline: const SizedBox(),
+              dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              items: const [
+                DropdownMenuItem(value: "standard", child: Text("Standard")),
+                DropdownMenuItem(value: "scientific", child: Text("Scientific")),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _mode = value!;
+                });
+              },
+            ),
+          ),
           // History Button
           IconButton(
             icon: const Icon(Icons.history),
@@ -370,8 +393,8 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
                 _isRadians ? "RAD" : "DEG",
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
-              backgroundColor: accentColor.withOpacity(0.2),
-              side: BorderSide(color: accentColor.withOpacity(0.5)),
+              backgroundColor: _primaryColor.withOpacity(0.2),
+              side: BorderSide(color: _primaryColor.withOpacity(0.5)),
             ),
           ),
         ],
@@ -380,37 +403,39 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
         children: [
           Column(
             children: [
-              // History/Equation Display
+              // Display Section
               Container(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                alignment: Alignment.centerRight,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  reverse: true,
-                  child: Text(
-                    _equation,
-                    style: TextStyle(
-                      fontSize: 28,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w400,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Equation Display
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: Text(
+                        _equation,
+                        style: TextStyle(
+                          fontSize: 28,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-
-              // Result Display
-              GestureDetector(
-                onLongPress: _copyResult,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    _result,
-                    style: const TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(height: 8),
+                    // Result Display
+                    GestureDetector(
+                      onLongPress: _copyResult,
+                      child: Text(
+                        _result,
+                        style: const TextStyle(
+                          fontSize: 52,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
 
@@ -418,133 +443,170 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
 
               // Memory Functions Row
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
-                    _buildButton("M+", memoryColor, flex: 1, fontSize: 18),
-                    _buildButton("M-", memoryColor, flex: 1, fontSize: 18),
-                    _buildButton("MR", memoryColor, flex: 1, fontSize: 18),
-                    _buildButton("MC", memoryColor, flex: 1, fontSize: 18),
-                    _buildButton("Ans", operatorColor, flex: 1, fontSize: 18),
+                    _buildButton("M+", _memoryColor, flex: 1, fontSize: 16),
+                    const SizedBox(width: 8),
+                    _buildButton("M-", _memoryColor, flex: 1, fontSize: 16),
+                    const SizedBox(width: 8),
+                    _buildButton("MR", _memoryColor, flex: 1, fontSize: 16),
+                    const SizedBox(width: 8),
+                    _buildButton("MC", _memoryColor, flex: 1, fontSize: 16),
+                    const SizedBox(width: 8),
+                    _buildButton("Ans", _operatorColor, flex: 1, fontSize: 16),
                   ],
                 ),
               ),
 
-              // Scientific Functions Row 1
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  children: [
-                    _buildButton("sin", operatorColor, flex: 1, fontSize: 16),
-                    _buildButton("cos", operatorColor, flex: 1, fontSize: 16),
-                    _buildButton("tan", operatorColor, flex: 1, fontSize: 16),
-                    _buildButton("asin", operatorColor, flex: 1, fontSize: 14),
-                    _buildButton("acos", operatorColor, flex: 1, fontSize: 14),
-                    _buildButton("atan", operatorColor, flex: 1, fontSize: 14),
-                  ],
+              // Scientific Functions (only in scientific mode)
+              if (_mode == "scientific") ...[
+                // Row 1: Trig Functions
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Row(
+                    children: [
+                      _buildButton("sin", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("cos", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("tan", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("asin", _functionColor, flex: 1, fontSize: 12),
+                      const SizedBox(width: 6),
+                      _buildButton("acos", _functionColor, flex: 1, fontSize: 12),
+                      const SizedBox(width: 6),
+                      _buildButton("atan", _functionColor, flex: 1, fontSize: 12),
+                    ],
+                  ),
                 ),
-              ),
-
-              // Scientific Functions Row 2
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  children: [
-                    _buildButton("log", operatorColor, flex: 1, fontSize: 16),
-                    _buildButton("ln", operatorColor, flex: 1, fontSize: 16),
-                    _buildButton("log10", operatorColor, flex: 1, fontSize: 14),
-                    _buildButton("√", operatorColor, flex: 1, fontSize: 20),
-                    _buildButton("∛", operatorColor, flex: 1, fontSize: 20),
-                    _buildButton("!", operatorColor, flex: 1, fontSize: 20),
-                  ],
+                // Row 2: Log Functions
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Row(
+                    children: [
+                      _buildButton("log", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("ln", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("log10", _functionColor, flex: 1, fontSize: 12),
+                      const SizedBox(width: 6),
+                      _buildButton("√", _functionColor, flex: 1, fontSize: 18),
+                      const SizedBox(width: 6),
+                      _buildButton("∛", _functionColor, flex: 1, fontSize: 18),
+                      const SizedBox(width: 6),
+                      _buildButton("!", _functionColor, flex: 1, fontSize: 18),
+                    ],
+                  ),
                 ),
-              ),
-
-              // Scientific Functions Row 3
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  children: [
-                    _buildButton("x²", operatorColor, flex: 1, fontSize: 18),
-                    _buildButton("x³", operatorColor, flex: 1, fontSize: 18),
-                    _buildButton("xʸ", operatorColor, flex: 1, fontSize: 18),
-                    _buildButton("10ˣ", operatorColor, flex: 1, fontSize: 14),
-                    _buildButton("eˣ", operatorColor, flex: 1, fontSize: 14),
-                    _buildButton("1/x", operatorColor, flex: 1, fontSize: 16),
-                  ],
+                // Row 3: Power Functions
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Row(
+                    children: [
+                      _buildButton("x²", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("x³", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("xʸ", _functionColor, flex: 1, fontSize: 14),
+                      const SizedBox(width: 6),
+                      _buildButton("10ˣ", _functionColor, flex: 1, fontSize: 12),
+                      const SizedBox(width: 6),
+                      _buildButton("eˣ", _functionColor, flex: 1, fontSize: 12),
+                      const SizedBox(width: 6),
+                      _buildButton("1/x", _functionColor, flex: 1, fontSize: 14),
+                    ],
+                  ),
                 ),
-              ),
-
-              // Constants Row
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  children: [
-                    _buildButton("π", operatorColor, flex: 1, fontSize: 20),
-                    _buildButton("e", operatorColor, flex: 1, fontSize: 20),
-                    _buildButton("(", buttonBgColor, flex: 1, fontSize: 24),
-                    _buildButton(")", buttonBgColor, flex: 1, fontSize: 24),
-                    _buildButton("rad", operatorColor, flex: 1, fontSize: 14),
-                  ],
+                // Row 4: Constants
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: Row(
+                    children: [
+                      _buildButton("π", _functionColor, flex: 1, fontSize: 16),
+                      const SizedBox(width: 6),
+                      _buildButton("e", _functionColor, flex: 1, fontSize: 16),
+                      const SizedBox(width: 6),
+                      _buildButton("(", _operatorColor, flex: 1, fontSize: 20),
+                      const SizedBox(width: 6),
+                      _buildButton(")", _operatorColor, flex: 1, fontSize: 20),
+                      const SizedBox(width: 6),
+                      _buildButton("rad", _operatorColor, flex: 1, fontSize: 12),
+                    ],
+                  ),
                 ),
-              ),
+              ],
 
               // Main Calculator Buttons
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     children: [
-                      // Row 1: Clear, Percent, Division
+                      // Row 1: AC, C, %, ÷
                       Row(
                         children: [
-                          _buildButton("AC", Colors.red.shade400, flex: 1),
-                          _buildButton("C", Colors.orange.shade400, flex: 1),
-                          _buildButton("%", operatorColor, flex: 1),
-                          _buildButton("÷", operatorColor, flex: 1),
+                          _buildButton("AC", _clearColor, flex: 1, fontSize: 18),
+                          const SizedBox(width: 8),
+                          _buildButton("C", _clearColor, flex: 1, fontSize: 18),
+                          const SizedBox(width: 8),
+                          _buildButton("%", _operatorColor, flex: 1, fontSize: 18),
+                          const SizedBox(width: 8),
+                          _buildButton("÷", _operatorColor, flex: 1, fontSize: 24),
                         ],
                       ),
                       const SizedBox(height: 8),
 
-                      // Row 2: 7, 8, 9, Multiplication
+                      // Row 2: 7, 8, 9, ×
                       Row(
                         children: [
-                          _buildButton("7", buttonBgColor, flex: 1),
-                          _buildButton("8", buttonBgColor, flex: 1),
-                          _buildButton("9", buttonBgColor, flex: 1),
-                          _buildButton("×", operatorColor, flex: 1),
+                          _buildButton("7", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("8", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("9", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("×", _operatorColor, flex: 1, fontSize: 24),
                         ],
                       ),
                       const SizedBox(height: 8),
 
-                      // Row 3: 4, 5, 6, Subtraction
+                      // Row 3: 4, 5, 6, -
                       Row(
                         children: [
-                          _buildButton("4", buttonBgColor, flex: 1),
-                          _buildButton("5", buttonBgColor, flex: 1),
-                          _buildButton("6", buttonBgColor, flex: 1),
-                          _buildButton("-", operatorColor, flex: 1),
+                          _buildButton("4", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("5", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("6", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("-", _operatorColor, flex: 1, fontSize: 28),
                         ],
                       ),
                       const SizedBox(height: 8),
 
-                      // Row 4: 1, 2, 3, Addition
+                      // Row 4: 1, 2, 3, +
                       Row(
                         children: [
-                          _buildButton("1", buttonBgColor, flex: 1),
-                          _buildButton("2", buttonBgColor, flex: 1),
-                          _buildButton("3", buttonBgColor, flex: 1),
-                          _buildButton("+", operatorColor, flex: 1),
+                          _buildButton("1", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("2", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("3", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton("+", _operatorColor, flex: 1, fontSize: 28),
                         ],
                       ),
                       const SizedBox(height: 8),
 
-                      // Row 5: 0, ., Equals
+                      // Row 5: 0, ., =
                       Row(
                         children: [
-                          _buildButton("0", buttonBgColor, flex: 2),
-                          _buildButton(".", buttonBgColor, flex: 1),
-                          _buildButton("=", const Color(0xFF10B981), flex: 1, textColor: Colors.white),
+                          _buildButton("0", numberBtnColor, flex: 2, textColor: numberTextColor, fontSize: 24),
+                          const SizedBox(width: 8),
+                          _buildButton(".", numberBtnColor, flex: 1, textColor: numberTextColor, fontSize: 28),
+                          const SizedBox(width: 8),
+                          _buildButton("=", _equalsColor, flex: 1, fontSize: 28),
                         ],
                       ),
                     ],
@@ -568,11 +630,10 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
               color: isDark ? const Color(0xFF1E293B) : Colors.white,
               child: Column(
                 children: [
-                  // History Header
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: accentColor,
+                      color: _primaryColor,
                       borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(20),
                         bottomRight: Radius.circular(20),
@@ -609,8 +670,6 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
                       ],
                     ),
                   ),
-
-                  // History List
                   Expanded(
                     child: _historyList.isEmpty
                         ? Center(
@@ -640,7 +699,7 @@ class _StandardCalculatorState extends State<StandardCalculator> with SingleTick
                           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: accentColor.withOpacity(0.1),
+                            color: _primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
