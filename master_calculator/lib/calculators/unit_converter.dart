@@ -1,6 +1,13 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class UnitConverter extends StatefulWidget {
   const UnitConverter({super.key});
@@ -18,6 +25,9 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
   String _language = "English";
   List<String> _favorites = [];
   bool _showFavorites = false;
+  bool _isLoading = false;
+  double _inputValue = 0;
+  final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -26,7 +36,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
   final Map<String, Map<String, dynamic>> _categories = {
     "Length": {
       "icon": Icons.straighten,
-      "color": Color(0xFF6366F1),
+      "color": const Color(0xFF6366F1),
       "units": {
         "Meter": 1.0,
         "Kilometer": 0.001,
@@ -44,7 +54,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Weight": {
       "icon": Icons.fitness_center,
-      "color": Color(0xFF10B981),
+      "color": const Color(0xFF10B981),
       "units": {
         "Kilogram": 1.0,
         "Gram": 1000.0,
@@ -59,7 +69,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Temperature": {
       "icon": Icons.thermostat,
-      "color": Color(0xFFEF4444),
+      "color": const Color(0xFFEF4444),
       "units": {
         "Celsius": "C",
         "Fahrenheit": "F",
@@ -69,7 +79,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Area": {
       "icon": Icons.crop_square,
-      "color": Color(0xFFF59E0B),
+      "color": const Color(0xFFF59E0B),
       "units": {
         "Square Meter": 1.0,
         "Square Kilometer": 0.000001,
@@ -85,7 +95,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Volume": {
       "icon": Icons.water_drop,
-      "color": Color(0xFF06B6D4),
+      "color": const Color(0xFF06B6D4),
       "units": {
         "Liter": 1.0,
         "Milliliter": 1000.0,
@@ -102,7 +112,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Speed": {
       "icon": Icons.speed,
-      "color": Color(0xFF8B5CF6),
+      "color": const Color(0xFF8B5CF6),
       "units": {
         "Meter/Second": 1.0,
         "Kilometer/Hour": 3.6,
@@ -115,7 +125,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Time": {
       "icon": Icons.access_time,
-      "color": Color(0xFFEC4899),
+      "color": const Color(0xFFEC4899),
       "units": {
         "Second": 1.0,
         "Millisecond": 1000.0,
@@ -131,7 +141,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Energy": {
       "icon": Icons.bolt,
-      "color": Color(0xFFF97316),
+      "color": const Color(0xFFF97316),
       "units": {
         "Joule": 1.0,
         "Kilojoule": 0.001,
@@ -145,7 +155,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Pressure": {
       "icon": Icons.speed_outlined,
-      "color": Color(0xFF14B8A6),
+      "color": const Color(0xFF14B8A6),
       "units": {
         "Pascal": 1.0,
         "Kilopascal": 0.001,
@@ -159,7 +169,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     },
     "Data": {
       "icon": Icons.storage,
-      "color": Color(0xFF3B82F6),
+      "color": const Color(0xFF3B82F6),
       "units": {
         "Byte": 1.0,
         "Kilobyte": 0.001,
@@ -189,10 +199,14 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
       "addFavorite": "Add to Favorites",
       "removeFavorite": "Remove from Favorites",
       "copy": "Copy Result",
+      "share": "Share",
       "language": "Language",
       "enterValue": "Enter value to convert",
       "copied": "Copied to clipboard!",
       "quickConversions": "Quick Conversions",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "Unit Conversion Result",
+      "shareMessage": "Check out my unit conversion from Master Calculator",
     },
     "Hindi": {
       "title": "यूनिट कनवर्टर",
@@ -206,10 +220,14 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
       "addFavorite": "पसंदीदा में जोड़ें",
       "removeFavorite": "पसंदीदा से हटाएं",
       "copy": "परिणाम कॉपी करें",
+      "share": "साझा करें",
       "language": "भाषा",
       "enterValue": "कनवर्ट करने के लिए मान दर्ज करें",
       "copied": "क्लिपबोर्ड पर कॉपी किया गया!",
       "quickConversions": "त्वरित रूपांतरण",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "यूनिट रूपांतरण परिणाम",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरा यूनिट रूपांतरण देखें",
     },
   };
 
@@ -228,65 +246,83 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
     );
     _animationController.forward();
+    _valueController.addListener(_onValueChanged);
     _loadFavorites();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _valueController.removeListener(_onValueChanged);
     _valueController.dispose();
     super.dispose();
   }
 
   void _loadFavorites() {
-    // In a real app, load from SharedPreferences
+    // Load from SharedPreferences in real app
     _favorites = ["Length: Meter to Kilometer", "Weight: Kilogram to Pound"];
   }
 
-  void _convert() {
+  void _onValueChanged() {
+    _performConversion();
+  }
+
+  void _performConversion() {
     double value = double.tryParse(_valueController.text) ?? 0;
-    if (value == 0 && _valueController.text.isNotEmpty) {
-      _showError(getText("enterValue"));
-      return;
+    _inputValue = value;
+
+    if (_categories[_category]!["isSpecial"] == true) {
+      _convertTemperature(value);
+    } else {
+      _convertStandard(value);
     }
-
-    setState(() {
-      if (_categories[_category]!["isSpecial"] == true) {
-        _convertTemperature(value);
-      } else {
-        _convertStandard(value);
-      }
-    });
-
-    HapticFeedback.lightImpact();
   }
 
   void _convertStandard(double value) {
-    double inBase = value / _categories[_category]!["units"][_fromUnit];
-    double converted = inBase * _categories[_category]!["units"][_toUnit];
-    setState(() {
-      _result = _formatResult(converted);
-    });
+    if (value == 0) {
+      setState(() {
+        _result = "0";
+      });
+      return;
+    }
+
+    try {
+      double inBase = value / _categories[_category]!["units"][_fromUnit];
+      double converted = inBase * _categories[_category]!["units"][_toUnit];
+      setState(() {
+        _result = _formatResult(converted);
+      });
+    } catch (e) {
+      setState(() {
+        _result = "Error";
+      });
+    }
   }
 
   void _convertTemperature(double value) {
     double converted = 0;
-    if (_fromUnit == "Celsius") {
-      if (_toUnit == "Fahrenheit") converted = (value * 9/5) + 32;
-      else if (_toUnit == "Kelvin") converted = value + 273.15;
-      else converted = value;
-    } else if (_fromUnit == "Fahrenheit") {
-      if (_toUnit == "Celsius") converted = (value - 32) * 5/9;
-      else if (_toUnit == "Kelvin") converted = (value - 32) * 5/9 + 273.15;
-      else converted = value;
-    } else if (_fromUnit == "Kelvin") {
-      if (_toUnit == "Celsius") converted = value - 273.15;
-      else if (_toUnit == "Fahrenheit") converted = (value - 273.15) * 9/5 + 32;
-      else converted = value;
+    try {
+      if (_fromUnit == "Celsius") {
+        if (_toUnit == "Fahrenheit") converted = (value * 9/5) + 32;
+        else if (_toUnit == "Kelvin") converted = value + 273.15;
+        else converted = value;
+      } else if (_fromUnit == "Fahrenheit") {
+        if (_toUnit == "Celsius") converted = (value - 32) * 5/9;
+        else if (_toUnit == "Kelvin") converted = (value - 32) * 5/9 + 273.15;
+        else converted = value;
+      } else if (_fromUnit == "Kelvin") {
+        if (_toUnit == "Celsius") converted = value - 273.15;
+        else if (_toUnit == "Fahrenheit") converted = (value - 273.15) * 9/5 + 32;
+        else converted = value;
+      }
+      setState(() {
+        _result = converted.toStringAsFixed(2);
+      });
+    } catch (e) {
+      setState(() {
+        _result = "Error";
+      });
     }
-    setState(() {
-      _result = converted.toStringAsFixed(2);
-    });
   }
 
   String _formatResult(double value) {
@@ -296,7 +332,30 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     if (value == value.roundToDouble()) {
       return value.round().toString();
     }
-    return value.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+    return value.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  }
+
+  void _convert() async {
+    double value = double.tryParse(_valueController.text) ?? 0;
+    if (value == 0 && _valueController.text.isNotEmpty) {
+      _showError(getText("enterValue"));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 100));
+    _performConversion();
+    setState(() => _isLoading = false);
+
+    // Save to history
+    await HistoryService.addToHistory(
+      expression: "${_valueController.text} $_fromUnit to $_toUnit",
+      result: "$_result $_toUnit",
+      calculatorType: "Unit",
+    );
+
+    HapticFeedback.lightImpact();
+    _showSnackBar(getText("savedToHistory"));
   }
 
   void _toggleFavorite() {
@@ -319,13 +378,42 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     _showSnackBar(getText("copied"));
   }
 
+  Future<void> _shareResult() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final RenderRepaintBoundary boundary = _resultKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final Directory directory = await getTemporaryDirectory();
+      final File imagePath = await File('${directory.path}/unit_result.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      final String shareText = """
+${getText("shareTitle")}:
+${_valueController.text} $_fromUnit = $_result $_toUnit
+---
+${getText("shareMessage")}
+      """;
+
+      await Share.shareXFiles([XFile(imagePath.path)], text: shareText);
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _copyResult();
+    }
+  }
+
   void _swapUnits() {
     setState(() {
       String temp = _fromUnit;
       _fromUnit = _toUnit;
       _toUnit = temp;
     });
-    _convert();
+    _performConversion();
   }
 
   void _toggleLanguage() {
@@ -346,6 +434,18 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     );
   }
 
+  String _getConversionRate() {
+    if (_categories[_category]!["isSpecial"] == true) {
+      if (_fromUnit == "Celsius" && _toUnit == "Fahrenheit") return "°F = (°C × 9/5) + 32";
+      if (_fromUnit == "Fahrenheit" && _toUnit == "Celsius") return "°C = (°F - 32) × 5/9";
+      if (_fromUnit == "Celsius" && _toUnit == "Kelvin") return "K = °C + 273.15";
+      if (_fromUnit == "Kelvin" && _toUnit == "Celsius") return "°C = K - 273.15";
+      return "Special formula";
+    }
+    double rate = _categories[_category]!["units"][_toUnit] / _categories[_category]!["units"][_fromUnit];
+    return _formatResult(rate);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -353,10 +453,12 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     final accentColor = currentCategory["color"];
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(getText("title")),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.language),
@@ -368,82 +470,79 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
             onPressed: () => setState(() => _showFavorites = !_showFavorites),
             tooltip: getText("favorites"),
           ),
+          if (_result != "0") ...[
+            IconButton(
+              icon: const Icon(Icons.share),
+              onPressed: _shareResult,
+              tooltip: getText("share"),
+            ),
+            IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: _copyResult,
+              tooltip: getText("copy"),
+            ),
+          ],
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Category Selector with Icons
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Text(
-                      getText("category"),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 80,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _categories.keys.length,
-                        itemBuilder: (context, index) {
-                          String key = _categories.keys.elementAt(index);
-                          var category = _categories[key]!;
-                          bool isSelected = _category == key;
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _category = key;
-                                _fromUnit = _categories[key]!["units"].keys.first;
-                                _toUnit = _categories[key]!["units"].keys.last;
-                              });
-                              _convert();
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 12),
-                              width: 70,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? category["color"].withOpacity(0.2)
-                                    : (isDark ? const Color(0xFF1E293B) : Colors.grey.shade100),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? category["color"]
-                                      : (isDark ? Colors.grey.shade800 : Colors.grey.shade300),
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(category["icon"],
-                                      color: isSelected ? category["color"] : null,
-                                      size: 28),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    key,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isSelected ? category["color"] : null,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    ),
-                                  ),
-                                ],
-                              ),
+            // Category Selector
+            Container(
+              height: 100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _categories.keys.length,
+                itemBuilder: (context, index) {
+                  String key = _categories.keys.elementAt(index);
+                  var category = _categories[key]!;
+                  bool isSelected = _category == key;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _category = key;
+                        _fromUnit = _categories[key]!["units"].keys.first;
+                        _toUnit = _categories[key]!["units"].keys.last;
+                      });
+                      _performConversion();
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? category["color"].withOpacity(0.2)
+                            : (isDark ? const Color(0xFF1E293B) : Colors.grey.shade100),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? category["color"]
+                              : (isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(category["icon"],
+                              color: isSelected ? category["color"] : null,
+                              size: 28),
+                          const SizedBox(height: 6),
+                          Text(
+                            key,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isSelected ? category["color"] : null,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
 
@@ -462,16 +561,15 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
                       controller: _valueController,
                       decoration: InputDecoration(
                         labelText: getText("value"),
-                        hintText: "100",
+                        hintText: "Enter value (e.g., 100)",
                         prefixIcon: Icon(Icons.numbers, color: accentColor),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       keyboardType: TextInputType.number,
-                      onSubmitted: (_) => _convert(),
                     ),
                     const SizedBox(height: 20),
 
-                    // From/To Units with Swap
+                    // From/To Units
                     Row(
                       children: [
                         Expanded(
@@ -480,19 +578,25 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
                             children: [
                               Text(getText("from"), style: TextStyle(fontSize: 12, color: Colors.grey)),
                               const SizedBox(height: 4),
-                              DropdownButtonFormField<String>(
-                                value: _fromUnit,
-                                decoration: InputDecoration(
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                items: _categories[_category]!["units"].keys.map((unit) {
-                                  return DropdownMenuItem(value: unit, child: Text(unit));
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() => _fromUnit = value!);
-                                  _convert();
-                                },
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _fromUnit,
+                                    isExpanded: true,
+                                    items: _categories[_category]!["units"].keys.map((unit) {
+                                      return DropdownMenuItem(value: unit, child: Text(unit));
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() => _fromUnit = value!);
+                                      _performConversion();
+                                    },
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -511,19 +615,25 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
                             children: [
                               Text(getText("to"), style: TextStyle(fontSize: 12, color: Colors.grey)),
                               const SizedBox(height: 4),
-                              DropdownButtonFormField<String>(
-                                value: _toUnit,
-                                decoration: InputDecoration(
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                items: _categories[_category]!["units"].keys.map((unit) {
-                                  return DropdownMenuItem(value: unit, child: Text(unit));
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() => _toUnit = value!);
-                                  _convert();
-                                },
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _toUnit,
+                                    isExpanded: true,
+                                    items: _categories[_category]!["units"].keys.map((unit) {
+                                      return DropdownMenuItem(value: unit, child: Text(unit));
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() => _toUnit = value!);
+                                      _performConversion();
+                                    },
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -565,73 +675,74 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
             GradientButton(
               text: getText("convert"),
               icon: Icons.calculate,
+              isLoading: _isLoading,
               onPressed: _convert,
             ),
 
-            if (_result != "0") ...[
-              const SizedBox(height: 20),
-
-              // Animated Result Card
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          accentColor.withOpacity(0.1),
-                          accentColor.withOpacity(0.05),
-                        ],
-                      ),
+            // Result Card
+            const SizedBox(height: 20),
+            RepaintBoundary(
+              key: _resultKey,
+              child: Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        accentColor.withOpacity(0.1),
+                        accentColor.withOpacity(0.05),
+                      ],
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Text(
-                            getText("result"),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Text(
+                          getText("result"),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "$_result $_toUnit",
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: accentColor,
-                            ),
-                            textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "$_result $_toUnit",
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: accentColor,
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.copy, size: 20),
-                                onPressed: _copyResult,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 20),
+                              onPressed: _copyResult,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
                                 "1 $_fromUnit = ${_getConversionRate()} $_toUnit",
                                 style: const TextStyle(fontSize: 12),
+                                textAlign: TextAlign.center,
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
+            ),
 
             // Favorites Section
             if (_showFavorites && _favorites.isNotEmpty) ...[
@@ -670,7 +781,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
                                 _fromUnit = conversion[0];
                                 _toUnit = conversion[1];
                               });
-                              _convert();
+                              _performConversion();
                             },
                             dense: true,
                           ),
@@ -691,31 +802,23 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     );
   }
 
-  String _getConversionRate() {
-    if (_categories[_category]!["isSpecial"] == true) {
-      return "Special formula";
-    }
-    double rate = _categories[_category]!["units"][_toUnit] / _categories[_category]!["units"][_fromUnit];
-    return _formatResult(rate);
-  }
-
   Widget _buildQuickConversions(Color accentColor) {
     List<Map<String, String>> quickConversions = _language == "English"
         ? [
       {"from": "1 km", "to": "miles", "result": "0.621 miles"},
       {"from": "1 kg", "to": "lbs", "result": "2.205 lbs"},
-      {"from": "1 USD", "to": "INR", "result": "83.5 INR"},
       {"from": "1 ft", "to": "cm", "result": "30.48 cm"},
       {"from": "1 gal", "to": "L", "result": "3.785 L"},
       {"from": "32°F", "to": "°C", "result": "0°C"},
+      {"from": "1 inch", "to": "cm", "result": "2.54 cm"},
     ]
         : [
       {"from": "1 km", "to": "miles", "result": "0.621 मील"},
       {"from": "1 kg", "to": "lbs", "result": "2.205 पाउंड"},
-      {"from": "1 USD", "to": "INR", "result": "83.5 रुपये"},
       {"from": "1 ft", "to": "cm", "result": "30.48 सेमी"},
       {"from": "1 gal", "to": "L", "result": "3.785 लीटर"},
       {"from": "32°F", "to": "°C", "result": "0°C"},
+      {"from": "1 inch", "to": "cm", "result": "2.54 सेमी"},
     ];
 
     return Column(
@@ -731,7 +834,7 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
           runSpacing: 8,
           children: quickConversions.map((conv) {
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: accentColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),

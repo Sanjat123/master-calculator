@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:ui' as ui;
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class GSTCalculator extends StatefulWidget {
   const GSTCalculator({super.key});
@@ -24,6 +25,7 @@ class _GSTCalculatorState extends State<GSTCalculator> with SingleTickerProvider
   String _baseAmount = "0";
   String _language = "English";
   bool _isLoading = false;
+  bool _showHSN = true;
   final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
@@ -32,33 +34,38 @@ class _GSTCalculatorState extends State<GSTCalculator> with SingleTickerProvider
   // HSN Code suggestions for different product categories
   final Map<String, List<Map<String, dynamic>>> _hsnCodes = {
     "0%": [
-      {"code": "0401", "description": "Fresh milk and cream"},
-      {"code": "1006", "description": "Rice (other than branded)"},
-      {"code": "1207", "description": "Fresh vegetables"},
+      {"code": "0401", "description": "Fresh milk and cream", "category": "Dairy"},
+      {"code": "1006", "description": "Rice (other than branded)", "category": "Grains"},
+      {"code": "1207", "description": "Fresh vegetables", "category": "Produce"},
+      {"code": "2201", "description": "Packaged drinking water", "category": "Beverages"},
     ],
     "5%": [
-      {"code": "0407", "description": "Eggs"},
-      {"code": "0801", "description": "Cashew nuts"},
-      {"code": "1905", "description": "Bread and biscuits"},
-      {"code": "2106", "description": "Packed food items"},
+      {"code": "0407", "description": "Eggs", "category": "Dairy"},
+      {"code": "0801", "description": "Cashew nuts", "category": "Dry Fruits"},
+      {"code": "1905", "description": "Bread and biscuits", "category": "Bakery"},
+      {"code": "2106", "description": "Packed food items", "category": "Food"},
+      {"code": "3003", "description": "Medicines", "category": "Healthcare"},
     ],
     "12%": [
-      {"code": "0406", "description": "Butter and cheese"},
-      {"code": "0802", "description": "Dry fruits"},
-      {"code": "2105", "description": "Ice cream"},
-      {"code": "3304", "description": "Cosmetics"},
+      {"code": "0406", "description": "Butter and cheese", "category": "Dairy"},
+      {"code": "0802", "description": "Dry fruits", "category": "Dry Fruits"},
+      {"code": "2105", "description": "Ice cream", "category": "Frozen"},
+      {"code": "3304", "description": "Cosmetics", "category": "Beauty"},
+      {"code": "4818", "description": "Toilet paper", "category": "Hygiene"},
     ],
     "18%": [
-      {"code": "1704", "description": "Sugar confectionery"},
-      {"code": "2202", "description": "Soft drinks"},
-      {"code": "3305", "description": "Hair oil and shampoo"},
-      {"code": "8516", "description": "Electronic appliances"},
+      {"code": "1704", "description": "Sugar confectionery", "category": "Food"},
+      {"code": "2202", "description": "Soft drinks", "category": "Beverages"},
+      {"code": "3305", "description": "Hair oil and shampoo", "category": "Personal Care"},
+      {"code": "8516", "description": "Electronic appliances", "category": "Electronics"},
+      {"code": "9401", "description": "Furniture", "category": "Home"},
     ],
     "28%": [
-      {"code": "2402", "description": "Cigarettes"},
-      {"code": "3303", "description": "Perfumes"},
-      {"code": "8703", "description": "Motor vehicles"},
-      {"code": "9504", "description": "Gaming devices"},
+      {"code": "2402", "description": "Cigarettes", "category": "Tobacco"},
+      {"code": "3303", "description": "Perfumes", "category": "Luxury"},
+      {"code": "8703", "description": "Motor vehicles", "category": "Automobile"},
+      {"code": "9504", "description": "Gaming devices", "category": "Entertainment"},
+      {"code": "7102", "description": "Diamonds", "category": "Jewelry"},
     ],
   };
 
@@ -88,6 +95,10 @@ class _GSTCalculatorState extends State<GSTCalculator> with SingleTickerProvider
       "shareTitle": "GST Calculator Result",
       "shareMessage": "Check out my GST calculation",
       "shareSuccess": "Shared successfully!",
+      "savedToHistory": "Saved to history",
+      "category": "Category",
+      "showHSN": "Show HSN Codes",
+      "taxBreakdown": "Tax Breakdown",
     },
     "Hindi": {
       "title": "जीएसटी कैलकुलेटर",
@@ -113,6 +124,10 @@ class _GSTCalculatorState extends State<GSTCalculator> with SingleTickerProvider
       "shareTitle": "जीएसटी कैलकुलेटर परिणाम",
       "shareMessage": "मेरी जीएसटी गणना देखें",
       "shareSuccess": "सफलतापूर्वक साझा किया गया!",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "category": "श्रेणी",
+      "showHSN": "एचएसएन कोड दिखाएं",
+      "taxBreakdown": "कर विवरण",
     },
   };
 
@@ -140,36 +155,44 @@ class _GSTCalculatorState extends State<GSTCalculator> with SingleTickerProvider
     super.dispose();
   }
 
-  void _calculate() {
+  void _calculate() async {
     double amount = double.tryParse(_amountController.text) ?? 0;
 
     if (amount > 0) {
       setState(() => _isLoading = true);
 
-      Future.delayed(const Duration(milliseconds: 100), () {
-        double gst = 0;
-        double total = 0;
-        double base = 0;
+      await Future.delayed(const Duration(milliseconds: 100));
 
-        if (_selectedType == "Inclusive") {
-          base = amount / (1 + _gstRate / 100);
-          gst = amount - base;
-          total = amount;
-        } else {
-          base = amount;
-          gst = amount * (_gstRate / 100);
-          total = amount + gst;
-        }
+      double gst = 0;
+      double total = 0;
+      double base = 0;
 
-        setState(() {
-          _baseAmount = base.toStringAsFixed(2);
-          _gstAmount = gst.toStringAsFixed(2);
-          _totalAmount = total.toStringAsFixed(2);
-          _isLoading = false;
-        });
+      if (_selectedType == "Inclusive") {
+        base = amount / (1 + _gstRate / 100);
+        gst = amount - base;
+        total = amount;
+      } else {
+        base = amount;
+        gst = amount * (_gstRate / 100);
+        total = amount + gst;
+      }
 
-        HapticFeedback.mediumImpact();
+      setState(() {
+        _baseAmount = base.toStringAsFixed(2);
+        _gstAmount = gst.toStringAsFixed(2);
+        _totalAmount = total.toStringAsFixed(2);
+        _isLoading = false;
       });
+
+      // Save to history
+      await HistoryService.addToHistory(
+        expression: "Amount: ₹${_amountController.text}, Rate: $_gstRate%, Type: $_selectedType",
+        result: "GST: ₹$_gstAmount, Total: ₹$_totalAmount",
+        calculatorType: "GST",
+      );
+
+      HapticFeedback.mediumImpact();
+      _showSnackBar(getText("savedToHistory"));
     } else {
       _showError("Please enter a valid amount");
     }
@@ -265,22 +288,39 @@ Download Master Calculator App for more features!
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accentColor = const Color(0xFF6366F1);
 
+    double base = double.tryParse(_baseAmount) ?? 0;
+    double gst = double.tryParse(_gstAmount) ?? 0;
+    double total = double.tryParse(_totalAmount) ?? 0;
+
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(getText("title")),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.language),
             onPressed: _toggleLanguage,
             tooltip: getText("language"),
           ),
+          IconButton(
+            icon: Icon(_showHSN ? Icons.code_off : Icons.code),
+            onPressed: () => setState(() => _showHSN = !_showHSN),
+            tooltip: getText("showHSN"),
+          ),
           if (_gstAmount != "0")
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: _captureAndShare,
               tooltip: getText("share"),
+            ),
+          if (_gstAmount != "0")
+            IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: _copyResult,
+              tooltip: getText("copy"),
             ),
         ],
       ),
@@ -450,6 +490,82 @@ Download Master Calculator App for more features!
                                 ),
                               ],
                             ),
+
+                            const SizedBox(height: 16),
+
+                            // Tax Breakdown Chart
+                            const SizedBox(height: 8),
+                            Text(
+                              getText("taxBreakdown"),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        height: 80,
+                                        width: 80,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            CircularProgressIndicator(
+                                              value: total > 0 ? base / total : 0,
+                                              strokeWidth: 8,
+                                              backgroundColor: Colors.grey.shade200,
+                                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                                            ),
+                                            Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  "${total > 0 ? ((base / total) * 100).toStringAsFixed(1) : "0"}%",
+                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                                ),
+                                                const Text("Base", style: TextStyle(fontSize: 8)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        height: 80,
+                                        width: 80,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            CircularProgressIndicator(
+                                              value: total > 0 ? gst / total : 0,
+                                              strokeWidth: 8,
+                                              backgroundColor: Colors.grey.shade200,
+                                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
+                                            ),
+                                            Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  "${total > 0 ? ((gst / total) * 100).toStringAsFixed(1) : "0"}%",
+                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                                ),
+                                                const Text("GST", style: TextStyle(fontSize: 8)),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
@@ -458,64 +574,74 @@ Download Master Calculator App for more features!
                 ),
               ),
 
-              const SizedBox(height: 20),
-
               // HSN Code Suggestions
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.code, color: accentColor),
-                          const SizedBox(width: 8),
-                          Text(
-                            getText("suggestedHSN"),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ...(_hsnCodes[_gstRate.toString() + "%"] ?? _hsnCodes["18%"]!).map((item) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: accentColor.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: accentColor,
-                                  borderRadius: BorderRadius.circular(6),
+              if (_showHSN) ...[
+                const SizedBox(height: 20),
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.code, color: accentColor),
+                            const SizedBox(width: 8),
+                            Text(
+                              getText("suggestedHSN"),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ...(_hsnCodes[_gstRate.toString() + "%"] ?? _hsnCodes["18%"]!).map((item) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: accentColor,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    item["code"],
+                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
-                                child: Text(
-                                  item["code"],
-                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item["description"],
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      Text(
+                                        item["category"],
+                                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  item["description"],
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
 
               const SizedBox(height: 16),
 
@@ -608,19 +734,20 @@ Download Master Calculator App for more features!
         ...tips.map((tip) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF6366F1).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
             ),
             child: Row(
               children: [
-                Text(tip["icon"]!, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
+                Text(tip["icon"]!, style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     tip["tip"]!,
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 13, height: 1.4),
                   ),
                 ),
               ],

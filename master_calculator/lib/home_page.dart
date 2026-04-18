@@ -18,6 +18,11 @@ import 'calculators/sip_calculator.dart';
 import 'calculators/currency_converter.dart';
 import 'calculators/unit_converter.dart';
 
+// Import additional pages
+import 'pages/history_page.dart';
+import 'pages/saved_page.dart';
+import 'pages/settings_page.dart';
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -30,6 +35,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   String _language = "English";
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Language translations with all calculator titles
   Map<String, Map<String, String>> _translations = {
@@ -59,7 +65,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       "hindi": "Hindi",
       "darkMode": "Dark Mode",
       "lightMode": "Light Mode",
-      // Calculator titles
+      "about": "About",
+      "rateUs": "Rate Us",
+      "share": "Share App",
+      "privacy": "Privacy Policy",
+      "version": "Version 1.0.0",
       "standard": "Standard",
       "age": "Age",
       "emi": "EMI",
@@ -70,7 +80,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       "unit": "Unit",
       "discount": "Discount",
       "loan": "Loan",
-      // Calculator subtitles
       "standardSub": "Arithmetic",
       "ageSub": "Exact Birthday",
       "emiSub": "Loan Planner",
@@ -108,7 +117,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       "hindi": "हिंदी",
       "darkMode": "डार्क मोड",
       "lightMode": "लाइट मोड",
-      // Calculator titles
+      "about": "के बारे में",
+      "rateUs": "रेट करें",
+      "share": "ऐप साझा करें",
+      "privacy": "गोपनीयता नीति",
+      "version": "संस्करण 1.0.0",
       "standard": "मानक",
       "age": "आयु",
       "emi": "ईएमआई",
@@ -119,7 +132,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       "unit": "इकाई",
       "discount": "छूट",
       "loan": "ऋण",
-      // Calculator subtitles
       "standardSub": "अंकगणित",
       "ageSub": "सटीक जन्मदिन",
       "emiSub": "ऋण योजनाकार",
@@ -196,6 +208,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
+  // Navigation methods
+  void _navigateToHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const HistoryPage()),
+    );
+  }
+
+  void _navigateToSaved() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SavedPage()),
+    );
+  }
+
+  void _navigateToSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SettingsPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -228,7 +262,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             subtitle: getText("emiSub"),
             icon: Icons.account_balance,
             color: Colors.green,
-            page: const EmiCalculator(),
+            page: const EMICalculator(),
           ),
           CalculatorItem(
             title: getText("bmi"),
@@ -282,6 +316,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         ];
 
         return Scaffold(
+          key: _scaffoldKey,
           drawer: _buildAppDrawer(user, isLoggedIn, items, themeProvider),
           appBar: AppBar(
             elevation: 0,
@@ -296,14 +331,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
             title: Row(
               children: [
-                // User Avatar Icon (small)
                 Container(
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [Colors.blue.shade400, Colors.purple.shade400],
+                    gradient: const LinearGradient(
+                      colors: [Colors.blue, Colors.purple],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -320,7 +354,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Greeting Text
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,86 +390,86 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ],
             ),
             actions: [
-              // Language Switch Button
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                child: IconButton(
-                  icon: const Icon(Icons.language),
-                  onPressed: toggleLanguage,
-                  tooltip: getText("language"),
-                ),
+              IconButton(
+                icon: const Icon(Icons.language),
+                onPressed: toggleLanguage,
+                tooltip: getText("language"),
               ),
-              // Theme Switcher
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                child: IconButton(
-                  icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: Colors.orangeAccent),
-                  onPressed: () => themeProvider.toggleTheme(!isDark),
-                ),
+              IconButton(
+                icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+                onPressed: () => themeProvider.toggleTheme(!isDark),
               ),
-              // User Profile / Login Button (moved to actions)
-              Container(
-                margin: const EdgeInsets.only(right: 12, left: 4),
-                child: GestureDetector(
-                  onTap: isLoggedIn ? () => _showProfileModal(context, user) : _handleGoogleSignIn,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.blueAccent.withOpacity(0.3), width: 1.5),
-                    ),
-                    child: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                      backgroundImage: isLoggedIn && user.photoURL != null ? NetworkImage(user.photoURL!) : null,
-                      child: !isLoggedIn
-                          ? const Icon(Icons.account_circle_rounded, size: 26, color: Colors.blueAccent)
-                          : null,
-                    ),
+              GestureDetector(
+                onTap: isLoggedIn ? () => _showProfileModal(context, user) : _handleGoogleSignIn,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1.5),
+                  ),
+                  child: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    backgroundImage: isLoggedIn && user.photoURL != null ? NetworkImage(user.photoURL!) : null,
+                    child: !isLoggedIn
+                        ? const Icon(Icons.account_circle, size: 22, color: Colors.blue)
+                        : null,
                   ),
                 ),
               ),
             ],
           ),
-
-
-          body: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 15),
-                  _buildQuickBanner(isLoggedIn),
-                  const SizedBox(height: 25),
-                  Text(getText("quickTools"), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 15),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 15,
-                      mainAxisSpacing: 15,
-                      childAspectRatio: 0.9,
-                    ),
-                    itemCount: items.length,
-                    itemBuilder: (context, index) => _buildCalculatorCard(items[index], isDark),
-                  ),
-                  const SizedBox(height: 30),
-                ],
-              ),
-            ),
-          ),
+          body: _getBody(_selectedIndex, isDark, items, isLoggedIn, user),
           bottomNavigationBar: _buildBottomNav(),
         );
       },
     );
   }
 
-  // --- WIDGETS ---
+  Widget _getBody(int index, bool isDark, List<CalculatorItem> items, bool isLoggedIn, User? user) {
+    switch (index) {
+      case 0:
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 15),
+                _buildQuickBanner(isLoggedIn),
+                const SizedBox(height: 25),
+                Text(getText("quickTools"), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 15),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 15,
+                    mainAxisSpacing: 15,
+                    childAspectRatio: 0.9,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) => _buildCalculatorCard(items[index], isDark),
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+        );
+      case 1:
+        return const HistoryPage();
+      case 2:
+        return const SavedPage();
+      case 3:
+        return const SettingsPage();
+      default:
+        return Container();
+    }
+  }
 
   Widget _buildQuickBanner(bool loggedIn) {
     return AnimatedContainer(
@@ -520,8 +553,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       child: Column(
         children: [
           Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
                 colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -537,11 +570,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               ),
               accountName: Text(
                 loggedIn ? (user?.displayName ?? getText("guest")) : getText("guestMode"),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
               ),
               accountEmail: Text(
                 loggedIn ? (user?.email ?? "") : getText("signInForCloud"),
-                style: const TextStyle(fontSize: 12),
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
               ),
             ),
           ),
@@ -551,7 +584,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               children: [
                 const Padding(
                   padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
-                  child: Text("TOOLS", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                  child: Text("CALCULATORS", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
                 ...items.map((item) => ListTile(
                   leading: Icon(item.icon, color: item.color, size: 22),
@@ -562,9 +595,41 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   },
                 )),
                 const Divider(),
-                // Language Settings
+                const Padding(
+                  padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+                  child: Text("GENERAL", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
                 ListTile(
-                  leading: const Icon(Icons.language, color: Colors.blueAccent),
+                  leading: const Icon(Icons.history, color: Color(0xFF6366F1)),
+                  title: const Text("History"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToHistory();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.star, color: Color(0xFFF59E0B)),
+                  title: const Text("Saved"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToSaved();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings, color: Color(0xFF10B981)),
+                  title: const Text("Settings"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _navigateToSettings();
+                  },
+                ),
+                const Divider(),
+                const Padding(
+                  padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+                  child: Text("PREFERENCES", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.language, color: Colors.blue),
                   title: const Text("Language"),
                   trailing: DropdownButton<String>(
                     value: _language,
@@ -575,13 +640,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     onChanged: (value) {
                       if (value != null) {
                         setState(() => _language = value);
+                        Navigator.pop(context);
                       }
                     },
                   ),
                 ),
-                // Dark Mode Toggle
                 ListTile(
-                  leading: Icon(isDark ? Icons.dark_mode : Icons.light_mode, color: Colors.orangeAccent),
+                  leading: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                   title: Text(isDark ? getText("darkMode") : getText("lightMode")),
                   trailing: Switch(
                     value: isDark,
@@ -589,15 +654,59 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                 ),
                 const Divider(),
-                // Sign In/Out Button
+                const Padding(
+                  padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+                  child: Text("ABOUT", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
                 ListTile(
-                  leading: Icon(loggedIn ? Icons.power_settings_new_rounded : Icons.login_rounded, color: Colors.redAccent),
+                  leading: const Icon(Icons.info, color: Color(0xFF8B5CF6)),
+                  title: const Text("About"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showAboutDialog();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.star_rate, color: Color(0xFFF59E0B)),
+                  title: const Text("Rate Us"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showRateUsDialog();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share, color: Color(0xFF10B981)),
+                  title: const Text("Share App"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _shareApp();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip, color: Color(0xFF6366F1)),
+                  title: const Text("Privacy Policy"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showPrivacyPolicy();
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: Icon(loggedIn ? Icons.logout : Icons.login, color: Colors.red),
                   title: Text(loggedIn ? getText("signOut") : getText("signIn")),
                   onTap: () {
                     Navigator.pop(context);
                     loggedIn ? _handleSignOut() : _handleGoogleSignIn();
                   },
                 ),
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    getText("version"),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -606,7 +715,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  // Profile Bottom Sheet
   void _showProfileModal(BuildContext context, User user) {
     showModalBottomSheet(
       context: context,
@@ -627,23 +735,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             const SizedBox(height: 20),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
+              leading: const Icon(Icons.history, color: Colors.blue),
               title: Text(getText("viewHistory")),
               onTap: () {
                 Navigator.pop(context);
-                _showComingSoon();
+                _navigateToHistory();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.star_rounded, color: Colors.amber),
+              leading: const Icon(Icons.star, color: Colors.amber),
               title: Text(getText("saved")),
               onTap: () {
                 Navigator.pop(context);
-                _showComingSoon();
+                _navigateToSaved();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              leading: const Icon(Icons.logout, color: Colors.red),
               title: Text(getText("logOut")),
               onTap: () {
                 Navigator.pop(context);
@@ -657,9 +765,76 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Coming Soon!"), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 1)),
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: "Master Calculator",
+      applicationVersion: "1.0.0",
+      applicationIcon: const Icon(Icons.calculate, size: 40),
+      children: const [
+        SizedBox(height: 16),
+        Text(
+          "A professional multi-purpose calculator application with 10+ powerful calculators.",
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 16),
+        Text(
+          "Made with ❤️ using Flutter",
+          textAlign: TextAlign.center,
+          style: TextStyle(fontStyle: FontStyle.italic),
+        ),
+      ],
+    );
+  }
+
+  void _showRateUsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Rate Us"),
+        content: const Text("If you enjoy using Master Calculator, please take a moment to rate us on the store."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Later"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showSnackBar("Thank you for rating!");
+            },
+            child: const Text("Rate Now"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _shareApp() {
+    Clipboard.setData(const ClipboardData(text: "Check out Master Calculator app!"));
+    _showSnackBar("App link copied to clipboard!");
+  }
+
+  void _showPrivacyPolicy() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Privacy Policy"),
+        content: const SingleChildScrollView(
+          child: Text(
+            "We value your privacy. This app does not collect any personal information.\n\n"
+                "Data Storage: All calculations are stored locally on your device.\n\n"
+                "Third-Party Services: We use Google Sign-In for authentication.\n\n"
+                "Contact: For any privacy concerns, please contact us.",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -668,18 +843,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       currentIndex: _selectedIndex,
       onTap: (index) {
         setState(() => _selectedIndex = index);
-        if (index == 1) _showComingSoon();
-        if (index == 2) _showComingSoon();
-        if (index == 3) _showComingSoon();
       },
       type: BottomNavigationBarType.fixed,
       selectedItemColor: const Color(0xFF6366F1),
       unselectedItemColor: Colors.grey,
-      items: [
-        BottomNavigationBarItem(icon: const Icon(Icons.dashboard_rounded), label: getText("home")),
-        BottomNavigationBarItem(icon: const Icon(Icons.history_rounded), label: getText("history")),
-        BottomNavigationBarItem(icon: const Icon(Icons.star_rounded), label: getText("saved")),
-        BottomNavigationBarItem(icon: const Icon(Icons.settings_rounded), label: getText("settings")),
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+        BottomNavigationBarItem(icon: Icon(Icons.star), label: "Saved"),
+        BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
       ],
     );
   }

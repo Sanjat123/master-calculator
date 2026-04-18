@@ -1,7 +1,14 @@
 import 'dart:math';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class SIPCalculator extends StatefulWidget {
   const SIPCalculator({super.key});
@@ -21,23 +28,22 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
   String _totalValue = "0";
   String _language = "English";
   String _frequency = "Monthly";
-  int _selectedRiskProfile = 1; // 0: Low, 1: Moderate, 2: High
+  int _selectedRiskProfile = 1;
   bool _isLoading = false;
   bool _showGoalPlanning = false;
+  final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
   List<Map<String, dynamic>> _yearlyProjection = [];
 
-  // Risk profile configurations
   final List<Map<String, dynamic>> _riskProfiles = [
     {"name": "Low Risk", "rate": 8.0, "color": const Color(0xFF10B981), "icon": Icons.shield},
     {"name": "Moderate Risk", "rate": 12.0, "color": const Color(0xFFF59E0B), "icon": Icons.bar_chart},
     {"name": "High Risk", "rate": 15.0, "color": const Color(0xFFEF4444), "icon": Icons.trending_up},
   ];
 
-  // Frequency multipliers
   final Map<String, int> _frequencyMultiplier = {
     "Monthly": 1,
     "Quarterly": 3,
@@ -45,7 +51,6 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
     "Yearly": 12,
   };
 
-  // Language translations
   Map<String, Map<String, String>> _translations = {
     "English": {
       "title": "SIP Calculator",
@@ -75,6 +80,10 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
       "wealthCreated": "Wealth Created",
       "tips": "Smart Investing Tips",
       "enterValid": "Please fill all fields correctly",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "SIP Investment Results",
+      "shareMessage": "Check out my SIP investment returns from Master Calculator",
+      "corpusAmount": "Corpus Amount",
     },
     "Hindi": {
       "title": "एसआईपी कैलकुलेटर",
@@ -104,6 +113,10 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
       "wealthCreated": "अर्जित धन",
       "tips": "स्मार्ट निवेश युक्तियाँ",
       "enterValid": "कृपया सभी फ़ील्ड सही भरें",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "एसआईपी निवेश परिणाम",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरे एसआईपी निवेश रिटर्न देखें",
+      "corpusAmount": "कोष राशि",
     },
   };
 
@@ -123,7 +136,6 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
     );
     _animationController.forward();
 
-    // Set default values
     _monthlyController.text = "5000";
     _rateController.text = "12";
     _yearsController.text = "10";
@@ -139,7 +151,7 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
     super.dispose();
   }
 
-  void _calculate() {
+  void _calculate() async {
     double monthly = double.tryParse(_monthlyController.text) ?? 0;
     double annualRate = _getRiskAdjustedRate();
     double years = double.tryParse(_yearsController.text) ?? 0;
@@ -147,24 +159,33 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
     if (monthly > 0 && annualRate > 0 && years > 0) {
       setState(() => _isLoading = true);
 
-      Future.delayed(const Duration(milliseconds: 100), () {
-        double rate = annualRate / 100 / 12;
-        double months = years * 12;
+      await Future.delayed(const Duration(milliseconds: 100));
 
-        double futureValue = monthly * ((pow(1 + rate, months) - 1) / rate) * (1 + rate);
-        double totalInvestment = monthly * months;
-        double estimatedReturns = futureValue - totalInvestment;
+      double rate = annualRate / 100 / 12;
+      double months = years * 12;
 
-        setState(() {
-          _totalInvestment = totalInvestment.toStringAsFixed(2);
-          _estimatedReturns = estimatedReturns.toStringAsFixed(2);
-          _totalValue = futureValue.toStringAsFixed(2);
-          _isLoading = false;
-        });
+      double futureValue = monthly * ((pow(1 + rate, months) - 1) / rate) * (1 + rate);
+      double totalInvestment = monthly * months;
+      double estimatedReturns = futureValue - totalInvestment;
 
-        _calculateYearlyProjection(monthly, annualRate, years);
-        HapticFeedback.mediumImpact();
+      setState(() {
+        _totalInvestment = totalInvestment.toStringAsFixed(2);
+        _estimatedReturns = estimatedReturns.toStringAsFixed(2);
+        _totalValue = futureValue.toStringAsFixed(2);
+        _isLoading = false;
       });
+
+      _calculateYearlyProjection(monthly, annualRate, years);
+
+      // Save to history
+      await HistoryService.addToHistory(
+        expression: "Monthly: ₹${_monthlyController.text}, Rate: ${_getRiskAdjustedRate()}%, Years: ${_yearsController.text}",
+        result: "Total: ₹$_totalValue, Returns: ₹$_estimatedReturns",
+        calculatorType: "SIP",
+      );
+
+      HapticFeedback.mediumImpact();
+      _showSnackBar(getText("savedToHistory"));
     } else {
       _showError(getText("enterValid"));
     }
@@ -172,7 +193,6 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
 
   void _calculateYearlyProjection(double monthly, double annualRate, double years) {
     List<Map<String, dynamic>> projection = [];
-    double totalInvestment = 0;
     double rate = annualRate / 100 / 12;
 
     for (int year = 1; year <= years.toInt(); year++) {
@@ -209,13 +229,13 @@ class _SIPCalculatorState extends State<SIPCalculator> with SingleTickerProvider
       double rate = annualRate / 100 / 12;
       double months = years * 12;
 
-      // Calculate required monthly SIP to achieve goal
       double requiredSIP = goal * rate / ((pow(1 + rate, months) - 1) * (1 + rate));
 
       setState(() {
         _monthlyController.text = requiredSIP.toStringAsFixed(0);
       });
       _calculate();
+      _showSnackBar("Required SIP calculated!");
     }
   }
 
@@ -248,6 +268,40 @@ ${getText("totalValue")}: ₹$_totalValue
     _showSnackBar(getText("copy"));
   }
 
+  Future<void> _shareResults() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final RenderRepaintBoundary boundary = _resultKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final Directory directory = await getTemporaryDirectory();
+      final File imagePath = await File('${directory.path}/sip_result.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      final String shareText = """
+${getText("shareTitle")}:
+${getText("monthlyInvestment")}: ₹${_monthlyController.text}
+${getText("expectedReturn")}: ${_getRiskAdjustedRate()}%
+${getText("timePeriod")}: ${_yearsController.text} years
+${getText("totalInvestment")}: ₹$_totalInvestment
+${getText("estimatedReturns")}: ₹$_estimatedReturns
+${getText("totalValue")}: ₹$_totalValue
+---
+${getText("shareMessage")}
+      """;
+
+      await Share.shareXFiles([XFile(imagePath.path)], text: shareText);
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _copyResult();
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
@@ -273,22 +327,30 @@ ${getText("totalValue")}: ₹$_totalValue
     double returnsPercent = totalVal > 0 ? (totalRet / totalVal * 100) : 0;
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(getText("title")),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.language),
             onPressed: _toggleLanguage,
             tooltip: getText("language"),
           ),
-          if (_totalValue != "0")
+          if (_totalValue != "0") ...[
             IconButton(
               icon: const Icon(Icons.share),
-              onPressed: _copyResult,
+              onPressed: _shareResults,
               tooltip: getText("share"),
             ),
+            IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: _copyResult,
+              tooltip: getText("copy"),
+            ),
+          ],
         ],
       ),
       body: SingleChildScrollView(
@@ -402,7 +464,6 @@ ${getText("totalValue")}: ₹$_totalValue
                       keyboardType: TextInputType.number,
                     ),
 
-                    // Goal Planning Toggle
                     const SizedBox(height: 16),
                     SwitchListTile(
                       title: Text(getText("goalPlanning")),
@@ -418,7 +479,7 @@ ${getText("totalValue")}: ₹$_totalValue
                         controller: _goalController,
                         decoration: InputDecoration(
                           labelText: getText("goalAmount"),
-                          prefixIcon: const Icon(Icons.flag),  // Changed from Icons.target to Icons.flag
+                          prefixIcon: const Icon(Icons.flag),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           suffixText: "₹",
                         ),
@@ -441,7 +502,6 @@ ${getText("totalValue")}: ₹$_totalValue
 
             const SizedBox(height: 20),
 
-            // Calculate Button
             GradientButton(
               text: getText("calculate"),
               icon: Icons.calculate,
@@ -452,188 +512,185 @@ ${getText("totalValue")}: ₹$_totalValue
             if (_totalValue != "0") ...[
               const SizedBox(height: 20),
 
-              // Animated Results
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        // Header
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: accentColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(Icons.trending_up, color: accentColor, size: 30),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    getText("powerOfCompounding"),
-                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    "${getText("timePeriod")}: ${_yearsController.text} years",
-                                    style: TextStyle(fontSize: 12, color: accentColor),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 20),
-                        const Divider(),
-
-                        // Wealth Gained Highlight
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [accentColor, accentColor.withOpacity(0.7)],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
+              RepaintBoundary(
+                key: _resultKey,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Card(
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          Row(
                             children: [
-                              Text(
-                                getText("wealthGained"),
-                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: accentColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(Icons.trending_up, color: accentColor, size: 30),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "₹$_estimatedReturns",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      getText("powerOfCompounding"),
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      "${getText("timePeriod")}: ${_yearsController.text} years",
+                                      style: TextStyle(fontSize: 12, color: accentColor),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
 
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 20),
+                          const Divider(),
 
-                        // Investment Breakdown Chart
-                        Column(
-                          children: [
-                            Text(
-                              getText("powerOfCompounding"),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [accentColor, accentColor.withOpacity(0.7)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            const SizedBox(height: 16),
-                            Row(
+                            child: Column(
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        height: 100,
-                                        width: 100,
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            SizedBox(
-                                              height: 100,
-                                              width: 100,
-                                              child: CircularProgressIndicator(
-                                                value: investedPercent / 100,
-                                                strokeWidth: 12,
-                                                backgroundColor: Colors.grey.shade200,
-                                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
-                                              ),
-                                            ),
-                                            Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Text(
-                                                  "${investedPercent.toStringAsFixed(1)}%",
-                                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                                ),
-                                                Text(getText("investedAmount"), style: const TextStyle(fontSize: 10)),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                Text(
+                                  getText("wealthGained"),
+                                  style: const TextStyle(color: Colors.white, fontSize: 14),
                                 ),
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      Container(
-                                        height: 100,
-                                        width: 100,
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            SizedBox(
-                                              height: 100,
-                                              width: 100,
-                                              child: CircularProgressIndicator(
-                                                value: returnsPercent / 100,
-                                                strokeWidth: 12,
-                                                backgroundColor: Colors.grey.shade200,
-                                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
-                                              ),
-                                            ),
-                                            Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Text(
-                                                  "${returnsPercent.toStringAsFixed(1)}%",
-                                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                                ),
-                                                Text(getText("wealthCreated"), style: const TextStyle(fontSize: 10)),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  "₹$_estimatedReturns",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 20),
-                        const Divider(),
-
-                        // Results
-                        _buildResultCard(getText("totalInvestment"), "₹$_totalInvestment", Colors.blue, Icons.account_balance_wallet),
-                        const SizedBox(height: 12),
-                        _buildResultCard(getText("estimatedReturns"), "₹$_estimatedReturns", const Color(0xFF10B981), Icons.trending_up),
-                        const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [const Color(0xFF8B5CF6), const Color(0xFF6366F1)],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: _buildResultCard(getText("totalValue"), "₹$_totalValue", Colors.white, Icons.account_balance, isMainResult: true),
-                        ),
-                      ],
+
+                          const SizedBox(height: 20),
+
+                          Column(
+                            children: [
+                              Text(
+                                getText("powerOfCompounding"),
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          height: 100,
+                                          width: 100,
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              SizedBox(
+                                                height: 100,
+                                                width: 100,
+                                                child: CircularProgressIndicator(
+                                                  value: investedPercent / 100,
+                                                  strokeWidth: 12,
+                                                  backgroundColor: Colors.grey.shade200,
+                                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                                                ),
+                                              ),
+                                              Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    "${investedPercent.toStringAsFixed(1)}%",
+                                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                                  ),
+                                                  Text(getText("investedAmount"), style: const TextStyle(fontSize: 10)),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          height: 100,
+                                          width: 100,
+                                          child: Stack(
+                                            alignment: Alignment.center,
+                                            children: [
+                                              SizedBox(
+                                                height: 100,
+                                                width: 100,
+                                                child: CircularProgressIndicator(
+                                                  value: returnsPercent / 100,
+                                                  strokeWidth: 12,
+                                                  backgroundColor: Colors.grey.shade200,
+                                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                                                ),
+                                              ),
+                                              Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    "${returnsPercent.toStringAsFixed(1)}%",
+                                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                                  ),
+                                                  Text(getText("wealthCreated"), style: const TextStyle(fontSize: 10)),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 20),
+                          const Divider(),
+
+                          _buildResultCard(getText("totalInvestment"), "₹$_totalInvestment", Colors.blue, Icons.account_balance_wallet),
+                          const SizedBox(height: 12),
+                          _buildResultCard(getText("estimatedReturns"), "₹$_estimatedReturns", const Color(0xFF10B981), Icons.trending_up),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [const Color(0xFF8B5CF6), const Color(0xFF6366F1)],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: _buildResultCard(getText("totalValue"), "₹$_totalValue", Colors.white, Icons.account_balance, isMainResult: true),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
 
-              // Yearly Projection
               if (_yearlyProjection.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Card(
@@ -708,7 +765,6 @@ ${getText("totalValue")}: ₹$_totalValue
                                         ),
                                       ],
                                     ),
-                                    // Progress bar for each year
                                     const SizedBox(height: 8),
                                     LinearProgressIndicator(
                                       value: year['value'] / _yearlyProjection.last['value'],
@@ -727,7 +783,6 @@ ${getText("totalValue")}: ₹$_totalValue
                 ),
               ],
 
-              // Smart Investing Tips
               const SizedBox(height: 16),
               _buildTips(),
             ],
@@ -802,19 +857,20 @@ ${getText("totalValue")}: ₹$_totalValue
         ...tips.map((tip) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: const Color(0xFF6366F1).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
             ),
             child: Row(
               children: [
-                Text(tip["icon"]!, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
+                Text(tip["icon"]!, style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     tip["tip"]!,
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 13, height: 1.4),
                   ),
                 ),
               ],

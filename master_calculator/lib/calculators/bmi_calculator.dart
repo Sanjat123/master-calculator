@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class BMICalculator extends StatefulWidget {
   const BMICalculator({super.key});
@@ -20,20 +27,20 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
   String _category = "";
   String _advice = "";
   String _language = "English";
-  String _unitSystem = "Metric"; // Metric or Imperial
+  String _unitSystem = "Metric";
   double _bmiValue = 0;
+  bool _isLoading = false;
+  final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
-  // Health metrics
   String _idealWeightRange = "";
   String _bodyFatEstimate = "";
   String _healthScore = "";
   String _waterIntake = "";
   String _calorieNeeds = "";
 
-  // Language translations
   Map<String, Map<String, String>> _translations = {
     "English": {
       "title": "BMI Calculator",
@@ -55,7 +62,7 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
       "overweight": "Overweight",
       "obese": "Obese",
       "share": "Share Results",
-      "save": "Save Results",
+      "copy": "Copy Results",
       "language": "Language",
       "unitSystem": "Unit System",
       "metric": "Metric (cm/kg)",
@@ -64,6 +71,9 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
       "heightIn": "Height (in)",
       "weightLbs": "Weight (lbs)",
       "waistIn": "Waist (in)",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "BMI Results",
+      "shareMessage": "Check out my BMI results from Master Calculator",
     },
     "Hindi": {
       "title": "बीएमआई कैलकुलेटर",
@@ -85,7 +95,7 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
       "overweight": "अधिक वजन",
       "obese": "मोटापा",
       "share": "परिणाम साझा करें",
-      "save": "परिणाम सहेजें",
+      "copy": "परिणाम कॉपी करें",
       "language": "भाषा",
       "unitSystem": "इकाई प्रणाली",
       "metric": "मीट्रिक (सेमी/किग्रा)",
@@ -94,6 +104,9 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
       "heightIn": "ऊंचाई (इंच)",
       "weightLbs": "वजन (पाउंड)",
       "waistIn": "कमर (इंच)",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "बीएमआई परिणाम",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरे बीएमआई परिणाम देखें",
     },
   };
 
@@ -124,7 +137,7 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
     super.dispose();
   }
 
-  void _calculateBMI() {
+  void _calculateBMI() async {
     double height = 0;
     double weight = 0;
     double waist = double.tryParse(_waistController.text) ?? 0;
@@ -141,6 +154,10 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
     }
 
     if (height > 0 && weight > 0) {
+      setState(() => _isLoading = true);
+
+      await Future.delayed(const Duration(milliseconds: 100));
+
       double bmi = weight / ((height / 100) * (height / 100));
       _bmiValue = bmi;
 
@@ -148,8 +165,17 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
         _bmi = bmi.toStringAsFixed(1);
         _setCategory(bmi);
         _calculateHealthMetrics(bmi, age, waist, height);
+        _isLoading = false;
       });
 
+      // Save to history
+      await HistoryService.addToHistory(
+        expression: "Height: ${_heightController.text}${_unitSystem == "Metric" ? "cm" : "ft"}, Weight: ${_weightController.text}${_unitSystem == "Metric" ? "kg" : "lbs"}",
+        result: "BMI: $_bmi ($_category)",
+        calculatorType: "BMI",
+      );
+
+      _showSnackBar(getText("savedToHistory"));
       HapticFeedback.mediumImpact();
     } else {
       _showError("Please enter valid height and weight");
@@ -181,18 +207,15 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
   }
 
   void _calculateHealthMetrics(double bmi, int age, double waist, double height) {
-    // Ideal weight range (BMI 18.5 to 24.9)
     double heightInMeters = (double.tryParse(_heightController.text) ?? 0) / 100;
     double minIdealWeight = 18.5 * heightInMeters * heightInMeters;
     double maxIdealWeight = 24.9 * heightInMeters * heightInMeters;
     _idealWeightRange = "${minIdealWeight.toStringAsFixed(1)} - ${maxIdealWeight.toStringAsFixed(1)} kg";
 
-    // Body fat estimate (using BMI and age)
     double bodyFat = (1.20 * bmi) + (0.23 * age) - 10.8 - 5.4;
     bodyFat = max(10, min(50, bodyFat));
     _bodyFatEstimate = "${bodyFat.toStringAsFixed(1)}%";
 
-    // Health score out of 100
     int healthScore = 100;
     if (bmi < 18.5) healthScore -= 20;
     else if (bmi > 25 && bmi < 30) healthScore -= 15;
@@ -201,14 +224,12 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
     healthScore = max(0, min(100, healthScore));
     _healthScore = "$healthScore/100";
 
-    // Water intake (30ml per kg of body weight)
     double weight = double.tryParse(_weightController.text) ?? 0;
     double waterML = weight * 30;
     _waterIntake = "${(waterML / 1000).toStringAsFixed(1)} L";
 
-    // Calorie needs (Harris-Benedict equation - simplified)
     double bmr = 10 * weight + 6.25 * (double.tryParse(_heightController.text) ?? 0) - 5 * age;
-    double calories = bmr * 1.375; // Lightly active multiplier
+    double calories = bmr * 1.375;
     _calorieNeeds = "${calories.round()} kcal/day";
   }
 
@@ -227,13 +248,55 @@ class _BMICalculatorState extends State<BMICalculator> with SingleTickerProvider
     return 1.0;
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+  Future<void> _shareResults() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final RenderRepaintBoundary boundary = _resultKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final Directory directory = await getTemporaryDirectory();
+      final File imagePath = await File('${directory.path}/bmi_result.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      final String shareText = """
+${getText("shareTitle")}:
+BMI: $_bmi ($_category)
+Ideal Weight: $_idealWeightRange
+Body Fat: $_bodyFatEstimate
+Health Score: $_healthScore
+Water Intake: $_waterIntake
+Daily Calories: $_calorieNeeds
+---
+${getText("shareMessage")}
+      """;
+
+      await Share.shareXFiles(
+        [XFile(imagePath.path)],
+        text: shareText,
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String results = """
+BMI Calculator Results:
+BMI: $_bmi ($_category)
+Ideal Weight: $_idealWeightRange
+Body Fat: $_bodyFatEstimate
+Health Score: $_healthScore
+Water Intake: $_waterIntake
+Daily Calories: $_calorieNeeds
+$_advice
+      """;
+      await Share.share(results);
+    }
   }
 
-  void _shareResults() {
+  void _copyResults() {
     String results = """
 BMI Calculator Results:
 BMI: $_bmi ($_category)
@@ -242,11 +305,16 @@ Body Fat: $_bodyFatEstimate
 Health Score: $_healthScore
 Water Intake: $_waterIntake
 Daily Calories: $_calorieNeeds
-
 $_advice
     """;
     Clipboard.setData(ClipboardData(text: results));
     _showSnackBar("Results copied to clipboard!");
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   void _showSnackBar(String message) {
@@ -295,12 +363,18 @@ $_advice
             onPressed: _toggleUnitSystem,
             tooltip: getText("unitSystem"),
           ),
-          if (_bmi != "0")
+          if (_bmi != "0") ...[
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: _shareResults,
               tooltip: getText("share"),
             ),
+            IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: _copyResults,
+              tooltip: getText("copy"),
+            ),
+          ],
         ],
       ),
       body: SingleChildScrollView(
@@ -308,7 +382,6 @@ $_advice
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Unit System Indicator
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -329,7 +402,6 @@ $_advice
             ),
             const SizedBox(height: 16),
 
-            // Input Card
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -420,128 +492,127 @@ $_advice
             ),
             const SizedBox(height: 20),
 
-            // Calculate Button
             GradientButton(
               text: getText("calculate"),
               icon: Icons.calculate,
+              isLoading: _isLoading,
               onPressed: _calculateBMI,
             ),
 
             if (_bmi != "0") ...[
               const SizedBox(height: 20),
 
-              // Animated BMI Display
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        // BMI Circle
-                        Container(
-                          width: 180,
-                          height: 180,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [
-                                categoryColor.withOpacity(0.2),
-                                categoryColor.withOpacity(0.05),
-                              ],
-                            ),
-                            border: Border.all(color: categoryColor, width: 4),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _bmi,
-                                  style: TextStyle(
-                                    fontSize: 52,
-                                    fontWeight: FontWeight.bold,
-                                    color: categoryColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  getText("bmi"),
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Category Badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: categoryColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: categoryColor.withOpacity(0.5)),
-                          ),
-                          child: Text(
-                            _category,
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: categoryColor,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // BMI Scale Indicator
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(getText("bmiScale"), style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Container(
-                              height: 8,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(4),
-                                gradient: const LinearGradient(
-                                  colors: [Colors.orange, Colors.green, Colors.orange, Colors.red],
-                                  stops: [0.25, 0.5, 0.75, 1.0],
-                                ),
+              RepaintBoundary(
+                key: _resultKey,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Card(
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 180,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [
+                                  categoryColor.withOpacity(0.2),
+                                  categoryColor.withOpacity(0.05),
+                                ],
                               ),
-                              child: Stack(
+                              border: Border.all(color: categoryColor, width: 4),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Positioned(
-                                    left: _getBMIPercentage() * MediaQuery.of(context).size.width * 0.8,
-                                    child: Container(
-                                      width: 16,
-                                      height: 16,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: categoryColor,
-                                        border: Border.all(color: Colors.white, width: 2),
-                                      ),
+                                  Text(
+                                    _bmi,
+                                    style: TextStyle(
+                                      fontSize: 52,
+                                      fontWeight: FontWeight.bold,
+                                      color: categoryColor,
                                     ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    getText("bmi"),
+                                    style: const TextStyle(fontSize: 16),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(getText("underweight"), style: const TextStyle(fontSize: 10)),
-                                Text(getText("normal"), style: const TextStyle(fontSize: 10)),
-                                Text(getText("overweight"), style: const TextStyle(fontSize: 10)),
-                                Text(getText("obese"), style: const TextStyle(fontSize: 10)),
-                              ],
+                          ),
+                          const SizedBox(height: 20),
+
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: categoryColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(color: categoryColor.withOpacity(0.5)),
                             ),
-                          ],
-                        ),
-                      ],
+                            child: Text(
+                              _category,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: categoryColor,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(getText("bmiScale"), style: const TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(4),
+                                  gradient: const LinearGradient(
+                                    colors: [Colors.orange, Colors.green, Colors.orange, Colors.red],
+                                    stops: [0.25, 0.5, 0.75, 1.0],
+                                  ),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      left: _getBMIPercentage() * MediaQuery.of(context).size.width * 0.7,
+                                      child: Container(
+                                        width: 16,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: categoryColor,
+                                          border: Border.all(color: Colors.white, width: 2),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(getText("underweight"), style: const TextStyle(fontSize: 10)),
+                                  Text(getText("normal"), style: const TextStyle(fontSize: 10)),
+                                  Text(getText("overweight"), style: const TextStyle(fontSize: 10)),
+                                  Text(getText("obese"), style: const TextStyle(fontSize: 10)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -549,7 +620,6 @@ $_advice
 
               const SizedBox(height: 20),
 
-              // Health Metrics Grid
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -568,7 +638,6 @@ $_advice
 
               const SizedBox(height: 20),
 
-              // Health Tips Card
               Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -599,7 +668,6 @@ $_advice
 
               const SizedBox(height: 20),
 
-              // Quick Tips Grid
               _buildQuickTips(),
             ],
           ],

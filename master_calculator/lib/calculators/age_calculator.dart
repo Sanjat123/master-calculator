@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class AgeCalculator extends StatefulWidget {
   const AgeCalculator({super.key});
@@ -14,7 +21,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
   DateTime? _selectedDate;
   String _result = "Select your birth date";
   Map<String, dynamic> _ageDetails = {};
-  String _language = "English"; // English or Hindi
+  String _language = "English";
+  bool _isLoading = false;
+  final GlobalKey _resultKey = GlobalKey();
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -51,6 +61,9 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
       "hindi": "Hindi",
       "ageDetails": "Age Details",
       "additionalInfo": "Additional Information",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "My Age Details",
+      "shareMessage": "Check out my age details from Master Calculator",
     },
     "Hindi": {
       "title": "आयु कैलकुलेटर",
@@ -83,6 +96,9 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
       "hindi": "हिंदी",
       "ageDetails": "आयु विवरण",
       "additionalInfo": "अतिरिक्त जानकारी",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "मेरी आयु विवरण",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरी आयु विवरण देखें",
     },
   };
 
@@ -107,8 +123,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
     super.dispose();
   }
 
-  void _calculateAge() {
+  void _calculateAge() async {
     if (_selectedDate == null) return;
+
+    setState(() => _isLoading = true);
 
     DateTime today = DateTime.now();
     int years = today.year - _selectedDate!.year;
@@ -149,7 +167,18 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
         'lifePercentage': _getLifePercentage(years),
         'daysUntilNext': _getDaysUntilNextBirthday(),
       };
+      _isLoading = false;
     });
+
+    // Save to history
+    await HistoryService.addToHistory(
+      expression: "Age from ${DateFormat('dd/MM/yyyy').format(_selectedDate!)}",
+      result: "$years years $months months $days days",
+      calculatorType: "Age",
+    );
+
+    _showSnackBar(getText("savedToHistory"));
+    HapticFeedback.mediumImpact();
   }
 
   String _getZodiacSign(DateTime date) {
@@ -199,7 +228,7 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
   }
 
   String _getLifePercentage(int age) {
-    double lifeExpectancy = 72.0; // Average global life expectancy
+    double lifeExpectancy = 72.0;
     double percentage = (age / lifeExpectancy) * 100;
     return percentage.toStringAsFixed(1) + "%";
   }
@@ -214,12 +243,46 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
     return nextBirthday.difference(today).inDays;
   }
 
-  void _shareAge() {
+  Future<void> _shareAge() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final RenderRepaintBoundary boundary = _resultKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final Directory directory = await getTemporaryDirectory();
+      final File imagePath = await File('${directory.path}/age_result.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      final String shareText = """
+${getText("shareTitle")}:
+${DateFormat('dd MMMM yyyy').format(_selectedDate!)}
+${_result}
+---
+${getText("shareMessage")}
+      """;
+
+      await Share.shareXFiles(
+        [XFile(imagePath.path)],
+        text: shareText,
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      // Fallback to text-only share
+      String message = "I am ${_ageDetails['years']} years, ${_ageDetails['months']} months, and ${_ageDetails['days']} days old!";
+      await Share.share(message);
+    }
+  }
+
+  void _copyAge() {
     String message = "I am ${_ageDetails['years']} years, ${_ageDetails['months']} months, and ${_ageDetails['days']} days old!";
     Clipboard.setData(ClipboardData(text: message));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(getText("copy")), duration: const Duration(seconds: 1)),
-    );
+    _showSnackBar(getText("copy"));
   }
 
   void _toggleLanguage() {
@@ -229,6 +292,12 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
         _calculateAge();
       }
     });
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+    );
   }
 
   @override
@@ -241,21 +310,22 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
         centerTitle: true,
         elevation: 0,
         actions: [
-          // Language Toggle Button
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: const Icon(Icons.language),
-              onPressed: _toggleLanguage,
-              tooltip: getText("language"),
-            ),
+          IconButton(
+            icon: const Icon(Icons.language),
+            onPressed: _toggleLanguage,
+            tooltip: getText("language"),
           ),
-          // Share Button
           if (_ageDetails.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: _shareAge,
               tooltip: getText("share"),
+            ),
+          if (_ageDetails.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: _copyAge,
+              tooltip: getText("copy"),
             ),
         ],
       ),
@@ -267,39 +337,42 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Main Result Card
-              Container(
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? [const Color(0xFF1E1B4B), const Color(0xFF0F172A)]
-                        : [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
+              RepaintBoundary(
+                key: _resultKey,
+                child: Container(
+                  padding: const EdgeInsets.all(30),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDark
+                          ? [const Color(0xFF1E1B4B), const Color(0xFF0F172A)]
+                          : [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
                     ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.cake, size: 60, color: Colors.white),
-                    const SizedBox(height: 16),
-                    Text(
-                      _result,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6366F1).withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.cake, size: 60, color: Colors.white),
+                      const SizedBox(height: 16),
+                      Text(
+                        _result,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -384,6 +457,7 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
               GradientButton(
                 text: _selectedDate == null ? getText("selectBirthDate") : getText("recalculate"),
                 icon: Icons.calendar_month,
+                isLoading: _isLoading,
                 onPressed: () async {
                   HapticFeedback.mediumImpact();
                   DateTime? picked = await showDatePicker(

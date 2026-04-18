@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class DiscountCalculator extends StatefulWidget {
   const DiscountCalculator({super.key});
@@ -20,13 +27,14 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
   String _taxAmount = "0";
   String _totalSavings = "0";
   String _language = "English";
-  String _discountType = "Percentage"; // Percentage or Fixed Amount
-  int _selectedIndex = 0; // 0: Basic, 1: Advanced
+  String _discountType = "Percentage";
+  int _selectedIndex = 0;
+  bool _isLoading = false;
+  final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
-  // Language translations
   Map<String, Map<String, String>> _translations = {
     "English": {
       "title": "Discount Calculator",
@@ -53,6 +61,9 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
       "discountTag": "Discount Applied",
       "taxTag": "Tax Applied",
       "finalPriceTag": "You Pay",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "Discount Calculation",
+      "shareMessage": "Check out my discount calculation from Master Calculator",
     },
     "Hindi": {
       "title": "डिस्काउंट कैलकुलेटर",
@@ -79,6 +90,9 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
       "discountTag": "छूट लागू",
       "taxTag": "कर लागू",
       "finalPriceTag": "आप भुगतान करें",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "छूट गणना",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरी छूट गणना देखें",
     },
   };
 
@@ -108,7 +122,7 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
     super.dispose();
   }
 
-  void _calculate() {
+  void _calculate() async {
     double price = double.tryParse(_priceController.text) ?? 0;
     double discountValue = double.tryParse(_discountController.text) ?? 0;
     double taxRate = double.tryParse(_taxController.text) ?? 0;
@@ -117,6 +131,9 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
       _showError(getText("enterValidAmount"));
       return;
     }
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 100));
 
     double discountAmount = 0;
 
@@ -130,7 +147,6 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
     double taxAmount = priceAfterDiscount * (taxRate / 100);
     double finalPrice = priceAfterDiscount + taxAmount;
     double totalSavings = discountAmount;
-    double effectiveDiscount = (totalSavings / price) * 100;
 
     setState(() {
       _savedAmount = _formatCurrency(discountAmount);
@@ -138,9 +154,18 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
       _taxAmount = _formatCurrency(taxAmount);
       _finalPrice = _formatCurrency(finalPrice);
       _totalSavings = _formatCurrency(totalSavings);
+      _isLoading = false;
     });
 
+    // Save to history
+    await HistoryService.addToHistory(
+      expression: "Original: ${_formatCurrency(price)}, Discount: ${_discountType == "Percentage" ? "$discountValue%" : _formatCurrency(discountValue)}",
+      result: "Final Price: $_finalPrice, You Save: $_savedAmount",
+      calculatorType: "Discount",
+    );
+
     HapticFeedback.mediumImpact();
+    _showSnackBar(getText("savedToHistory"));
   }
 
   String _formatCurrency(double amount) {
@@ -160,7 +185,7 @@ class _DiscountCalculatorState extends State<DiscountCalculator> with SingleTick
     });
   }
 
-  void _shareResults() {
+  void _copyResults() {
     String results = """
 ${getText("title")} Results:
 ${getText("originalPrice")}: ${_formatCurrency(double.tryParse(_priceController.text) ?? 0)}
@@ -171,6 +196,49 @@ ${getText("totalSavings")}: $_totalSavings
     """;
     Clipboard.setData(ClipboardData(text: results));
     _showSnackBar(getText("copy"));
+  }
+
+  Future<void> _shareResults() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final RenderRepaintBoundary boundary = _resultKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final Directory directory = await getTemporaryDirectory();
+      final File imagePath = await File('${directory.path}/discount_result.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      final String shareText = """
+${getText("shareTitle")}:
+${getText("originalPrice")}: ${_formatCurrency(double.tryParse(_priceController.text) ?? 0)}
+${getText("discount")}: ${_discountController.text}${_discountType == "Percentage" ? "%" : ""}
+${getText("youSave")}: $_savedAmount
+${getText("finalPrice")}: $_finalPrice
+---
+${getText("shareMessage")}
+      """;
+
+      await Share.shareXFiles(
+        [XFile(imagePath.path)],
+        text: shareText,
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String results = """
+${getText("title")} Results:
+${getText("originalPrice")}: ${_formatCurrency(double.tryParse(_priceController.text) ?? 0)}
+${getText("discount")}: ${_discountController.text}${_discountType == "Percentage" ? "%" : ""}
+${getText("youSave")}: $_savedAmount
+${getText("finalPrice")}: $_finalPrice
+      """;
+      await Share.share(results);
+    }
   }
 
   void _showError(String message) {
@@ -204,12 +272,18 @@ ${getText("totalSavings")}: $_totalSavings
             onPressed: _toggleLanguage,
             tooltip: getText("language"),
           ),
-          if (_priceController.text.isNotEmpty && _discountController.text.isNotEmpty)
+          if (_savedAmount != "0") ...[
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: _shareResults,
               tooltip: getText("share"),
             ),
+            IconButton(
+              icon: const Icon(Icons.copy),
+              onPressed: _copyResults,
+              tooltip: getText("copy"),
+            ),
+          ],
         ],
       ),
       body: SingleChildScrollView(
@@ -241,7 +315,6 @@ ${getText("totalSavings")}: $_totalSavings
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // Original Price
                     TextField(
                       controller: _priceController,
                       decoration: InputDecoration(
@@ -309,7 +382,6 @@ ${getText("totalSavings")}: $_totalSavings
                     ),
                     const SizedBox(height: 16),
 
-                    // Discount Input
                     TextField(
                       controller: _discountController,
                       decoration: InputDecoration(
@@ -320,7 +392,6 @@ ${getText("totalSavings")}: $_totalSavings
                       keyboardType: TextInputType.number,
                     ),
 
-                    // Advanced Options
                     if (_selectedIndex == 1) ...[
                       const SizedBox(height: 16),
                       TextField(
@@ -340,58 +411,60 @@ ${getText("totalSavings")}: $_totalSavings
 
             const SizedBox(height: 20),
 
-            // Calculate Button
             GradientButton(
               text: getText("calculate"),
               icon: Icons.calculate,
+              isLoading: _isLoading,
               onPressed: _calculate,
             ),
 
             if (_savedAmount != "0") ...[
               const SizedBox(height: 20),
 
-              // Animated Results
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        // Savings Ring Chart
-                        _buildSavingsRing(price, discountPercent.toDouble()),
+              RepaintBoundary(
+                key: _resultKey,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Card(
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          // Savings Ring Chart
+                          _buildSavingsRing(price, discountPercent.toDouble()),
 
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 20),
 
-                        // Main Results
-                        _buildResultCard(getText("youSave"), _savedAmount, Colors.green, Icons.savings),
-                        const SizedBox(height: 12),
-
-                        _buildResultCard(getText("priceAfterDiscount"), _priceAfterDiscount, const Color(0xFF6366F1), Icons.currency_rupee),
-
-                        if (_selectedIndex == 1 && _taxAmount != "0") ...[
+                          // Main Results
+                          _buildResultCard(getText("youSave"), _savedAmount, Colors.green, Icons.savings),
                           const SizedBox(height: 12),
-                          _buildResultCard(getText("taxAmount"), _taxAmount, Colors.orange, Icons.receipt),
-                        ],
 
-                        const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF10B981), Color(0xFF059669)],
+                          _buildResultCard(getText("priceAfterDiscount"), _priceAfterDiscount, const Color(0xFF6366F1), Icons.currency_rupee),
+
+                          if (_selectedIndex == 1 && _taxAmount != "0") ...[
+                            const SizedBox(height: 12),
+                            _buildResultCard(getText("taxAmount"), _taxAmount, Colors.orange, Icons.receipt),
+                          ],
+
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF059669)],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            borderRadius: BorderRadius.circular(12),
+                            child: _buildResultCard(getText("finalPrice"), _finalPrice, Colors.white, Icons.payment, isMainResult: true),
                           ),
-                          child: _buildResultCard(getText("finalPrice"), _finalPrice, Colors.white, Icons.payment, isMainResult: true),
-                        ),
 
-                        if (_selectedIndex == 1) ...[
-                          const SizedBox(height: 12),
-                          _buildResultCard(getText("totalSavings"), _totalSavings, const Color(0xFF8B5CF6), Icons.trending_down),
+                          if (_selectedIndex == 1) ...[
+                            const SizedBox(height: 12),
+                            _buildResultCard(getText("totalSavings"), _totalSavings, const Color(0xFF8B5CF6), Icons.trending_down),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

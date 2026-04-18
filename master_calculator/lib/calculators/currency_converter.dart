@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../widgets/gradient_button.dart';
+import '../services/history_service.dart';
 
 class CurrencyConverter extends StatefulWidget {
   const CurrencyConverter({super.key});
@@ -15,9 +22,12 @@ class _CurrencyConverterState extends State<CurrencyConverter> with SingleTicker
   String _fromCurrency = "USD";
   String _toCurrency = "INR";
   String _result = "0";
+  String _convertedAmount = "0";
   String _language = "English";
   List<String> _favoriteCurrencies = ["USD", "EUR", "GBP", "INR", "JPY"];
-  List<String> _recentConversions = [];
+  List<Map<String, dynamic>> _recentConversions = [];
+  bool _isLoading = false;
+  final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -65,6 +75,9 @@ class _CurrencyConverterState extends State<CurrencyConverter> with SingleTicker
       "copied": "Copied to clipboard!",
       "historicalRates": "Historical Rates",
       "last30Days": "Last 30 Days Trend",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "Currency Conversion",
+      "shareMessage": "Check out my currency conversion from Master Calculator",
     },
     "Hindi": {
       "title": "मुद्रा परिवर्तक",
@@ -85,6 +98,9 @@ class _CurrencyConverterState extends State<CurrencyConverter> with SingleTicker
       "copied": "क्लिपबोर्ड पर कॉपी किया गया!",
       "historicalRates": "ऐतिहासिक दरें",
       "last30Days": "पिछले 30 दिनों का रुझान",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "मुद्रा रूपांतरण",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरा मुद्रा रूपांतरण देखें",
     },
   };
 
@@ -112,30 +128,46 @@ class _CurrencyConverterState extends State<CurrencyConverter> with SingleTicker
   }
 
   void _loadRecentConversions() {
-    // In a real app, load from SharedPreferences
-    _recentConversions = [
-      "100 USD → INR",
-      "50 EUR → GBP",
-      "1000 JPY → USD",
-    ];
+    // Load from SharedPreferences in real app
+    _recentConversions = [];
   }
 
-  void _convert() {
+  void _convert() async {
     double amount = double.tryParse(_amountController.text) ?? 0;
     if (amount > 0) {
+      setState(() => _isLoading = true);
+
+      await Future.delayed(const Duration(milliseconds: 100));
+
       double inUSD = amount / _currencies[_fromCurrency]!["rate"]!;
       double converted = inUSD * _currencies[_toCurrency]!["rate"]!;
+      _convertedAmount = converted.toStringAsFixed(2);
 
       setState(() {
         _result = "${_currencies[_toCurrency]!["symbol"]} ${converted.toStringAsFixed(2)}";
 
         // Add to recent conversions
-        String recent = "${_currencies[_fromCurrency]!["symbol"]}${amount.toStringAsFixed(2)} ${_fromCurrency} → ${_currencies[_toCurrency]!["symbol"]}${converted.toStringAsFixed(2)} ${_toCurrency}";
+        Map<String, dynamic> recent = {
+          "fromAmount": amount,
+          "fromCurrency": _fromCurrency,
+          "toAmount": converted,
+          "toCurrency": _toCurrency,
+          "timestamp": DateTime.now(),
+        };
         _recentConversions.insert(0, recent);
         if (_recentConversions.length > 5) _recentConversions.removeLast();
+        _isLoading = false;
       });
 
+      // Save to history
+      await HistoryService.addToHistory(
+        expression: "${_currencies[_fromCurrency]!["symbol"]}$amount $_fromCurrency to $_toCurrency",
+        result: "${_currencies[_toCurrency]!["symbol"]}${converted.toStringAsFixed(2)} $_toCurrency",
+        calculatorType: "Currency",
+      );
+
       HapticFeedback.lightImpact();
+      _showSnackBar(getText("savedToHistory"));
     } else {
       _showError(getText("invalidAmount"));
     }
@@ -158,14 +190,43 @@ class _CurrencyConverterState extends State<CurrencyConverter> with SingleTicker
     _showSnackBar(getText("copied"));
   }
 
-  void _shareResult() {
-    String shareText = """
+  Future<void> _shareResult() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final RenderRepaintBoundary boundary = _resultKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final Directory directory = await getTemporaryDirectory();
+      final File imagePath = await File('${directory.path}/currency_result.png').create();
+      await imagePath.writeAsBytes(pngBytes);
+
+      final String shareText = """
+${getText("shareTitle")}:
+${_currencies[_fromCurrency]!["symbol"]} ${_amountController.text} $_fromCurrency = $_result $_toCurrency
+Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _currencies[_fromCurrency]!["rate"]!).toStringAsFixed(4)} $_toCurrency
+---
+${getText("shareMessage")}
+      """;
+
+      await Share.shareXFiles(
+        [XFile(imagePath.path)],
+        text: shareText,
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String shareText = """
 Currency Conversion Result:
 ${_currencies[_fromCurrency]!["symbol"]} ${_amountController.text} $_fromCurrency = $_result $_toCurrency
 Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _currencies[_fromCurrency]!["rate"]!).toStringAsFixed(4)} $_toCurrency
-    """;
-    Clipboard.setData(ClipboardData(text: shareText));
-    _showSnackBar(getText("copied"));
+      """;
+      await Share.share(shareText);
+    }
   }
 
   void _toggleLanguage() {
@@ -178,8 +239,10 @@ Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _curre
     setState(() {
       if (_favoriteCurrencies.contains(currency)) {
         _favoriteCurrencies.remove(currency);
+        _showSnackBar("Removed from favorites");
       } else {
         _favoriteCurrencies.add(currency);
+        _showSnackBar("Added to favorites");
       }
     });
   }
@@ -289,6 +352,7 @@ Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _curre
                       GradientButton(
                         text: getText("convert"),
                         icon: Icons.currency_exchange,
+                        isLoading: _isLoading,
                         onPressed: _convert,
                       ),
                     ],
@@ -300,68 +364,71 @@ Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _curre
 
               // Result Card
               if (_result != "0") ...[
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Text(
-                          getText("result"),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                RepaintBoundary(
+                  key: _resultKey,
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Text(
+                            getText("result"),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _result,
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF10B981),
+                          const SizedBox(height: 8),
+                          Text(
+                            _result,
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF10B981),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6366F1).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                "1 $_fromCurrency = $exchangeRate $_toCurrency",
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6366F1).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "1 $_fromCurrency = $exchangeRate $_toCurrency",
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.copy, size: 20),
+                                onPressed: _copyResult,
+                                tooltip: getText("copy"),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.share, size: 20),
+                                onPressed: _shareResult,
+                                tooltip: getText("share"),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.copy, size: 20),
-                              onPressed: _copyResult,
-                              tooltip: getText("copy"),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.share, size: 20),
-                              onPressed: _shareResult,
-                              tooltip: getText("share"),
-                            ),
-                          ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -426,16 +493,26 @@ Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _curre
                               const Icon(Icons.history, size: 16, color: Colors.grey),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  conversion,
-                                  style: const TextStyle(fontSize: 14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "${_currencies[conversion["fromCurrency"]]!["flag"]} ${conversion["fromAmount"].toStringAsFixed(2)} ${conversion["fromCurrency"]}",
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                    ),
+                                    Text(
+                                      "→ ${_currencies[conversion["toCurrency"]]!["flag"]} ${conversion["toAmount"].toStringAsFixed(2)} ${conversion["toCurrency"]}",
+                                      style: const TextStyle(fontSize: 12, color: Color(0xFF10B981)),
+                                    ),
+                                  ],
                                 ),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.repeat, size: 16),
                                 onPressed: () {
-                                  // Parse and reuse conversion
-                                  _amountController.text = conversion.split(" ")[0].replaceAll(RegExp(r'[^0-9.]'), '');
+                                  _amountController.text = conversion["fromAmount"].toString();
+                                  _fromCurrency = conversion["fromCurrency"];
+                                  _toCurrency = conversion["toCurrency"];
                                   _convert();
                                 },
                               ),
@@ -492,6 +569,11 @@ Exchange Rate: 1 $_fromCurrency = ${(_currencies[_toCurrency]!["rate"]! / _curre
               Text(_currencies[currency]!["flag"]),
               const SizedBox(width: 8),
               Text(currency),
+              const SizedBox(width: 4),
+              Text(
+                _currencies[currency]!["name"],
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
             ],
           ),
         );
@@ -617,7 +699,6 @@ class _TrendLinePainter extends CustomPainter {
       ..color = const Color(0xFF6366F1).withOpacity(0.1)
       ..style = PaintingStyle.fill;
 
-    // Sample trend data (simulated)
     List<double> values = [83.2, 83.5, 83.8, 83.3, 83.1, 83.4, 83.6, 83.9, 83.7, 83.5];
 
     Path path = Path();
@@ -636,7 +717,6 @@ class _TrendLinePainter extends CustomPainter {
       }
     }
 
-    // Fill area under curve
     Path fillPath = Path.from(path);
     fillPath.lineTo(size.width, size.height);
     fillPath.lineTo(0, size.height);

@@ -23,6 +23,7 @@ dependencies:
   # State Management
   provider: ^6.1.2
 
+
   # Utilities
   intl: ^0.19.0
   math_expressions: ^2.5.0
@@ -30,6 +31,7 @@ dependencies:
   # Sharing & Screenshot
   share_plus: ^7.2.1
   path_provider: ^2.1.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
