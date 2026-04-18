@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../theme_provider.dart';
+import '../services/history_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -12,10 +13,45 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderStateMixin {
   bool _notificationsEnabled = true;
   bool _hapticEnabled = true;
   bool _autoSaveEnabled = true;
+  String _lastBackupTime = "Never";
+  int _historyCount = 0;
+  bool _isLoading = false;
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    final lastBackup = await HistoryService.getLastBackupTime();
+    final count = await HistoryService.getHistoryCount();
+    setState(() {
+      if (lastBackup != null) {
+        final date = DateTime.parse(lastBackup);
+        _lastBackupTime = "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute}";
+      }
+      _historyCount = count;
+      _isLoading = false;
+    });
+    _animationController.forward(from: 0);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,121 +68,12 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
-      body: ListView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
         children: [
           // Profile Section
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF6366F1).withOpacity(0.1),
-                  const Color(0xFF8B5CF6).withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFF6366F1).withOpacity(0.2),
-              ),
-            ),
-            child: Row(
-              children: [
-                // Profile Image
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                    ),
-                  ),
-                  child: CircleAvatar(
-                    radius: 33,
-                    backgroundColor: Colors.transparent,
-                    backgroundImage: isLoggedIn && user.photoURL != null
-                        ? NetworkImage(user.photoURL!)
-                        : null,
-                    child: !isLoggedIn
-                        ? const Icon(Icons.person, size: 40, color: Colors.white)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Profile Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isLoggedIn ? (user.displayName ?? "User") : "Guest User",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isLoggedIn ? (user.email ?? "") : "Sign in to sync data",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (!isLoggedIn)
-                        ElevatedButton(
-                          onPressed: () => _handleGoogleSignIn(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF6366F1),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.login, size: 16),
-                              SizedBox(width: 4),
-                              Text("Sign In", style: TextStyle(fontSize: 12)),
-                            ],
-                          ),
-                        )
-                      else
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.verified,
-                              size: 14,
-                              color: Colors.green,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              "Verified Account",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-                if (isLoggedIn)
-                  IconButton(
-                    icon: const Icon(Icons.logout, color: Colors.red),
-                    onPressed: () => _handleSignOut(context),
-                    tooltip: "Sign Out",
-                  ),
-              ],
-            ),
-          ),
+          _buildProfileSection(isDark, isLoggedIn, user),
 
           // Appearance Section
           _buildSectionHeader("Appearance", Icons.palette),
@@ -229,7 +156,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   leading: const Icon(Icons.delete_sweep, color: Colors.red),
                   title: const Text("Clear History"),
-                  subtitle: const Text("Remove all calculation history"),
+                  subtitle: Text("$_historyCount items in history"),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _showClearHistoryDialog(context),
                 ),
@@ -237,7 +164,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   leading: const Icon(Icons.backup, color: Colors.blue),
                   title: const Text("Backup Data"),
-                  subtitle: const Text("Backup your calculations to cloud"),
+                  subtitle: Text("Last backup: $_lastBackupTime"),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _showBackupDialog(context),
                 ),
@@ -245,7 +172,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   leading: const Icon(Icons.restore, color: Colors.orange),
                   title: const Text("Restore Data"),
-                  subtitle: const Text("Restore from cloud backup"),
+                  subtitle: const Text("Restore from last backup"),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _showRestoreDialog(context),
                 ),
@@ -310,6 +237,121 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildProfileSection(bool isDark, bool isLoggedIn, User? user) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6366F1).withOpacity(0.1),
+            const Color(0xFF8B5CF6).withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF6366F1).withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Profile Image
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+              ),
+            ),
+            child: CircleAvatar(
+              radius: 33,
+              backgroundColor: Colors.transparent,
+              backgroundImage: isLoggedIn && user?.photoURL != null
+                  ? NetworkImage(user!.photoURL!)
+                  : null,
+              child: !isLoggedIn
+                  ? const Icon(Icons.person, size: 40, color: Colors.white)
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Profile Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isLoggedIn ? (user?.displayName ?? "User") : "Guest User",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isLoggedIn ? (user?.email ?? "") : "Sign in to sync data",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (!isLoggedIn)
+                  ElevatedButton(
+                    onPressed: () => _handleGoogleSignIn(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.login, size: 16),
+                        SizedBox(width: 4),
+                        Text("Sign In", style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.verified,
+                        size: 14,
+                        color: Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Verified Account",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          if (isLoggedIn)
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              onPressed: () => _handleSignOut(context),
+              tooltip: "Sign Out",
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(String title, IconData icon) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 16, 8),
@@ -334,7 +376,7 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        duration: const Duration(seconds: 1),
+        duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -366,12 +408,17 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {});
   }
 
-  void _showClearHistoryDialog(BuildContext context) {
+  void _showClearHistoryDialog(BuildContext context) async {
+    if (_historyCount == 0) {
+      _showSnackBar(context, "No history to clear");
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Clear History"),
-        content: const Text("Are you sure you want to clear all calculation history? This action cannot be undone."),
+        content: Text("Are you sure you want to clear all $_historyCount calculation history items? This action cannot be undone."),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
@@ -379,7 +426,9 @@ class _SettingsPageState extends State<SettingsPage> {
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await HistoryService.clearAllHistory();
+              await _loadData();
               Navigator.pop(context);
               _showSnackBar(context, "History cleared successfully!");
             },
@@ -387,14 +436,14 @@ class _SettingsPageState extends State<SettingsPage> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text("Clear"),
+            child: const Text("Clear All"),
           ),
         ],
       ),
     );
   }
 
-  void _showBackupDialog(BuildContext context) {
+  void _showBackupDialog(BuildContext context) async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -407,9 +456,16 @@ class _SettingsPageState extends State<SettingsPage> {
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              _showSnackBar(context, "Backup completed successfully!");
+              _showSnackBar(context, "Backing up...");
+              final success = await HistoryService.backupToCloud();
+              if (success) {
+                await _loadData();
+                _showSnackBar(context, "Backup completed successfully!");
+              } else {
+                _showSnackBar(context, "Backup failed. Please try again.");
+              }
             },
             child: const Text("Backup Now"),
           ),
@@ -418,12 +474,18 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showRestoreDialog(BuildContext context) {
+  void _showRestoreDialog(BuildContext context) async {
+    final lastBackup = await HistoryService.getLastBackupTime();
+    if (lastBackup == null) {
+      _showSnackBar(context, "No backup found. Please backup first.");
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Restore Data"),
-        content: const Text("This will restore your data from the last backup. Continue?"),
+        content: Text("This will restore your data from backup dated $_lastBackupTime. Current data will be replaced. Continue?"),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
@@ -431,9 +493,16 @@ class _SettingsPageState extends State<SettingsPage> {
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              _showSnackBar(context, "Data restored successfully!");
+              _showSnackBar(context, "Restoring...");
+              final success = await HistoryService.restoreFromCloud();
+              if (success) {
+                await _loadData();
+                _showSnackBar(context, "Data restored successfully!");
+              } else {
+                _showSnackBar(context, "Restore failed. Please try again.");
+              }
             },
             child: const Text("Restore"),
           ),
@@ -504,7 +573,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _shareApp(BuildContext context) {
-    Clipboard.setData(const ClipboardData(text: "Check out Master Calculator app! A powerful multi-purpose calculator with 10+ tools."));
+    Clipboard.setData(const ClipboardData(text: "Check out Master Calculator app! A powerful multi-purpose calculator with 10+ tools. Download now!"));
     _showSnackBar(context, "App link copied to clipboard!");
   }
 
@@ -524,7 +593,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Information We Collect",
+                "1. Information We Collect",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -536,7 +605,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "How We Use Your Information",
+                "2. How We Use Your Information",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -548,7 +617,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Data Storage",
+                "3. Data Storage",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -558,7 +627,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Third-Party Services",
+                "4. Third-Party Services",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -569,7 +638,19 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Contact Us",
+                "5. Your Rights",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 4),
+              Text(
+                "• You can clear your history at any time\n"
+                    "• You can export or delete your data\n"
+                    "• You can sign out to stop cloud sync",
+                style: TextStyle(fontSize: 13),
+              ),
+              SizedBox(height: 12),
+              Text(
+                "6. Contact Us",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -602,7 +683,7 @@ class _SettingsPageState extends State<SettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Acceptance of Terms",
+                "1. Acceptance of Terms",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -612,7 +693,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Use of the App",
+                "2. Use of the App",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -622,7 +703,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Disclaimer",
+                "3. Disclaimer",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
@@ -632,7 +713,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 12),
               Text(
-                "Changes to Terms",
+                "4. Changes to Terms",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),

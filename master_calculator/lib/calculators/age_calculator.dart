@@ -18,11 +18,14 @@ class AgeCalculator extends StatefulWidget {
 }
 
 class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProviderStateMixin {
-  DateTime? _selectedDate;
-  String _result = "Select your birth date";
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  String _result = "Select date range";
   Map<String, dynamic> _ageDetails = {};
   String _language = "English";
   bool _isLoading = false;
+  bool _showAgeRange = false;
+  RangeValues _ageRange = const RangeValues(0, 100);
   final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
@@ -32,7 +35,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
   Map<String, Map<String, String>> _translations = {
     "English": {
       "title": "Age Calculator",
-      "selectDate": "Select your birth date",
+      "fromDate": "From Date",
+      "toDate": "To Date",
+      "selectFromDate": "Select Start Date",
+      "selectToDate": "Select End Date",
       "years": "Years",
       "months": "Months",
       "days": "Days",
@@ -40,9 +46,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
       "totalMonths": "Total Months",
       "nextBirthday": "Next Birthday",
       "daysRemaining": "days remaining",
-      "selectBirthDate": "Select Birth Date",
-      "recalculate": "Recalculate Age",
-      "selectedDate": "Selected Date",
+      "selectDateRange": "Select Date Range",
+      "calculate": "Calculate Age",
+      "selectedFromDate": "Selected From Date",
+      "selectedToDate": "Selected To Date",
       "weeks": "Weeks",
       "hours": "Hours",
       "minutes": "Minutes",
@@ -62,12 +69,24 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
       "ageDetails": "Age Details",
       "additionalInfo": "Additional Information",
       "savedToHistory": "Saved to history",
-      "shareTitle": "My Age Details",
+      "shareTitle": "Age Details",
       "shareMessage": "Check out my age details from Master Calculator",
+      "ageRange": "Age Range",
+      "filterByAge": "Filter by Age",
+      "minAge": "Min Age",
+      "maxAge": "Max Age",
+      "peopleInRange": "People in this age range",
+      "ageDistribution": "Age Distribution",
+      "dateRange": "Date Range",
+      "swapDates": "Swap Dates",
+      "clearDates": "Clear Dates",
     },
     "Hindi": {
       "title": "आयु कैलकुलेटर",
-      "selectDate": "अपनी जन्म तिथि चुनें",
+      "fromDate": "प्रारंभ तिथि",
+      "toDate": "अंतिम तिथि",
+      "selectFromDate": "प्रारंभ तिथि चुनें",
+      "selectToDate": "अंतिम तिथि चुनें",
       "years": "साल",
       "months": "महीने",
       "days": "दिन",
@@ -75,9 +94,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
       "totalMonths": "कुल महीने",
       "nextBirthday": "अगला जन्मदिन",
       "daysRemaining": "दिन शेष",
-      "selectBirthDate": "जन्म तिथि चुनें",
-      "recalculate": "आयु पुनः गणना करें",
-      "selectedDate": "चयनित तिथि",
+      "selectDateRange": "तिथि सीमा चुनें",
+      "calculate": "आयु गणना करें",
+      "selectedFromDate": "चयनित प्रारंभ तिथि",
+      "selectedToDate": "चयनित अंतिम तिथि",
       "weeks": "सप्ताह",
       "hours": "घंटे",
       "minutes": "मिनट",
@@ -97,8 +117,17 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
       "ageDetails": "आयु विवरण",
       "additionalInfo": "अतिरिक्त जानकारी",
       "savedToHistory": "इतिहास में सहेजा गया",
-      "shareTitle": "मेरी आयु विवरण",
+      "shareTitle": "आयु विवरण",
       "shareMessage": "मास्टर कैलकुलेटर से मेरी आयु विवरण देखें",
+      "ageRange": "आयु सीमा",
+      "filterByAge": "आयु के अनुसार फ़िल्टर करें",
+      "minAge": "न्यूनतम आयु",
+      "maxAge": "अधिकतम आयु",
+      "peopleInRange": "इस आयु सीमा में लोग",
+      "ageDistribution": "आयु वितरण",
+      "dateRange": "तिथि सीमा",
+      "swapDates": "तिथियां बदलें",
+      "clearDates": "तिथियां साफ़ करें",
     },
   };
 
@@ -115,6 +144,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
     );
     _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeInOut);
     _animationController.forward();
+
+    // Set default dates
+    _toDate = DateTime.now();
+    _fromDate = DateTime.now().subtract(const Duration(days: 365 * 25));
   }
 
   @override
@@ -124,15 +157,25 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
   }
 
   void _calculateAge() async {
-    if (_selectedDate == null) return;
+    if (_fromDate == null || _toDate == null) {
+      _showSnackBar("Please select both dates");
+      return;
+    }
+
+    if (_fromDate!.isAfter(_toDate!)) {
+      _showSnackBar("From date cannot be after To date");
+      return;
+    }
 
     setState(() => _isLoading = true);
 
-    DateTime today = DateTime.now();
-    int years = today.year - _selectedDate!.year;
-    int months = today.month - _selectedDate!.month;
-    int days = today.day - _selectedDate!.day;
-    int totalDays = today.difference(_selectedDate!).inDays;
+    DateTime start = _fromDate!;
+    DateTime end = _toDate!;
+
+    int years = end.year - start.year;
+    int months = end.month - start.month;
+    int days = end.day - start.day;
+    int totalDays = end.difference(start).inDays;
     int totalMonths = (years * 12) + months;
     int totalWeeks = (totalDays / 7).floor();
     int totalHours = totalDays * 24;
@@ -141,7 +184,7 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
 
     if (days < 0) {
       months--;
-      days += DateTime(today.year, today.month, 0).day;
+      days += DateTime(end.year, end.month, 0).day;
     }
     if (months < 0) {
       years--;
@@ -160,10 +203,10 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
         'totalHours': totalHours,
         'totalMinutes': totalMinutes,
         'totalSeconds': totalSeconds,
-        'zodiac': _getZodiacSign(_selectedDate!),
-        'birthstone': _getBirthstone(_selectedDate!),
+        'zodiac': _getZodiacSign(start),
+        'birthstone': _getBirthstone(start),
         'generation': _getGeneration(years),
-        'dayOfWeek': DateFormat('EEEE').format(_selectedDate!),
+        'dayOfWeek': DateFormat('EEEE').format(start),
         'lifePercentage': _getLifePercentage(years),
         'daysUntilNext': _getDaysUntilNextBirthday(),
       };
@@ -172,7 +215,7 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
 
     // Save to history
     await HistoryService.addToHistory(
-      expression: "Age from ${DateFormat('dd/MM/yyyy').format(_selectedDate!)}",
+      expression: "From ${DateFormat('dd/MM/yyyy').format(_fromDate!)} to ${DateFormat('dd/MM/yyyy').format(_toDate!)}",
       result: "$years years $months months $days days",
       calculatorType: "Age",
     );
@@ -234,13 +277,31 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
   }
 
   int _getDaysUntilNextBirthday() {
-    if (_selectedDate == null) return 0;
+    if (_fromDate == null) return 0;
     DateTime today = DateTime.now();
-    DateTime nextBirthday = DateTime(today.year, _selectedDate!.month, _selectedDate!.day);
+    DateTime nextBirthday = DateTime(today.year, _fromDate!.month, _fromDate!.day);
     if (nextBirthday.isBefore(today)) {
-      nextBirthday = DateTime(today.year + 1, _selectedDate!.month, _selectedDate!.day);
+      nextBirthday = DateTime(today.year + 1, _fromDate!.month, _fromDate!.day);
     }
     return nextBirthday.difference(today).inDays;
+  }
+
+  void _swapDates() {
+    setState(() {
+      DateTime? temp = _fromDate;
+      _fromDate = _toDate;
+      _toDate = temp;
+    });
+    _calculateAge();
+  }
+
+  void _clearDates() {
+    setState(() {
+      _fromDate = null;
+      _toDate = null;
+      _result = "Select date range";
+      _ageDetails = {};
+    });
   }
 
   Future<void> _shareAge() async {
@@ -259,7 +320,8 @@ class _AgeCalculatorState extends State<AgeCalculator> with SingleTickerProvider
 
       final String shareText = """
 ${getText("shareTitle")}:
-${DateFormat('dd MMMM yyyy').format(_selectedDate!)}
+From: ${DateFormat('dd MMMM yyyy').format(_fromDate!)}
+To: ${DateFormat('dd MMMM yyyy').format(_toDate!)}
 ${_result}
 ---
 ${getText("shareMessage")}
@@ -273,14 +335,13 @@ ${getText("shareMessage")}
       setState(() => _isLoading = false);
     } catch (e) {
       setState(() => _isLoading = false);
-      // Fallback to text-only share
-      String message = "I am ${_ageDetails['years']} years, ${_ageDetails['months']} months, and ${_ageDetails['days']} days old!";
+      String message = "From: ${DateFormat('dd/MM/yyyy').format(_fromDate!)} To: ${DateFormat('dd/MM/yyyy').format(_toDate!)}\n$_result";
       await Share.share(message);
     }
   }
 
   void _copyAge() {
-    String message = "I am ${_ageDetails['years']} years, ${_ageDetails['months']} months, and ${_ageDetails['days']} days old!";
+    String message = "From: ${DateFormat('dd/MM/yyyy').format(_fromDate!)} To: ${DateFormat('dd/MM/yyyy').format(_toDate!)}\n$_result";
     Clipboard.setData(ClipboardData(text: message));
     _showSnackBar(getText("copy"));
   }
@@ -288,7 +349,7 @@ ${getText("shareMessage")}
   void _toggleLanguage() {
     setState(() {
       _language = _language == "English" ? "Hindi" : "English";
-      if (_selectedDate != null) {
+      if (_fromDate != null && _toDate != null) {
         _calculateAge();
       }
     });
@@ -300,9 +361,73 @@ ${getText("shareMessage")}
     );
   }
 
+  String _getAgeCategory(int age) {
+    if (age < 13) return "Child (बच्चा)";
+    if (age < 20) return "Teenager (किशोर)";
+    if (age < 30) return "Young Adult (युवा)";
+    if (age < 50) return "Adult (वयस्क)";
+    if (age < 65) return "Middle Age (मध्यम आयु)";
+    return "Senior (वरिष्ठ)";
+  }
+
+  Future<void> _selectFromDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _fromDate ?? DateTime(1990),
+      firstDate: DateTime(1900),
+      lastDate: _toDate ?? DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF6366F1),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _fromDate = picked);
+      if (_toDate != null && _fromDate!.isBefore(_toDate!)) {
+        _calculateAge();
+      }
+    }
+  }
+
+  Future<void> _selectToDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _toDate ?? DateTime.now(),
+      firstDate: _fromDate ?? DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF6366F1),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _toDate = picked);
+      if (_fromDate != null && _fromDate!.isBefore(_toDate!)) {
+        _calculateAge();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    int currentAge = _ageDetails.isNotEmpty ? _ageDetails['years'] : 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -315,18 +440,18 @@ ${getText("shareMessage")}
             onPressed: _toggleLanguage,
             tooltip: getText("language"),
           ),
-          if (_ageDetails.isNotEmpty)
+          if (_fromDate != null && _toDate != null) ...[
             IconButton(
               icon: const Icon(Icons.share),
               onPressed: _shareAge,
               tooltip: getText("share"),
             ),
-          if (_ageDetails.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.copy),
               onPressed: _copyAge,
               tooltip: getText("copy"),
             ),
+          ],
         ],
       ),
       body: FadeTransition(
@@ -336,6 +461,140 @@ ${getText("shareMessage")}
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Date Range Selection Card
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.date_range, color: const Color(0xFF6366F1)),
+                          const SizedBox(width: 8),
+                          Text(
+                            getText("dateRange"),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // From Date
+                      InkWell(
+                        onTap: _selectFromDate,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, color: const Color(0xFF6366F1), size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      getText("fromDate"),
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _fromDate != null
+                                          ? DateFormat('dd MMMM yyyy').format(_fromDate!)
+                                          : getText("selectFromDate"),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: _fromDate != null ? null : Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Swap Button
+                      Center(
+                        child: IconButton(
+                          icon: const Icon(Icons.swap_vert, color: Color(0xFF6366F1)),
+                          onPressed: _swapDates,
+                          tooltip: getText("swapDates"),
+                        ),
+                      ),
+
+                      // To Date
+                      InkWell(
+                        onTap: _selectToDate,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, color: const Color(0xFF6366F1), size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      getText("toDate"),
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _toDate != null
+                                          ? DateFormat('dd MMMM yyyy').format(_toDate!)
+                                          : getText("selectToDate"),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: _toDate != null ? null : Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Clear Button
+                      if (_fromDate != null || _toDate != null)
+                        TextButton.icon(
+                          onPressed: _clearDates,
+                          icon: const Icon(Icons.clear, size: 16),
+                          label: Text(getText("clearDates")),
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // Main Result Card
               RepaintBoundary(
                 key: _resultKey,
@@ -360,7 +619,7 @@ ${getText("shareMessage")}
                   ),
                   child: Column(
                     children: [
-                      const Icon(Icons.cake, size: 60, color: Colors.white),
+                      const Icon(Icons.date_range, size: 60, color: Colors.white),
                       const SizedBox(height: 16),
                       Text(
                         _result,
@@ -375,6 +634,86 @@ ${getText("shareMessage")}
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // Age Category Badge
+              if (_ageDetails.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.category, size: 16, color: const Color(0xFF6366F1)),
+                      const SizedBox(width: 8),
+                      Text(
+                        _getAgeCategory(currentAge),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 20),
+
+              // Calculate Button
+              GradientButton(
+                text: getText("calculate"),
+                icon: Icons.calculate,
+                isLoading: _isLoading,
+                onPressed: _calculateAge,
+              ),
+
+              const SizedBox(height: 16),
+
+              // Selected Dates Display
+              if (_fromDate != null && _toDate != null)
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 16, color: const Color(0xFF6366F1)),
+                            const SizedBox(width: 8),
+                            Text(
+                              getText("selectedFromDate"),
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                            ),
+                            const Spacer(),
+                            Text(
+                              DateFormat('dd MMMM yyyy').format(_fromDate!),
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 16, color: const Color(0xFF6366F1)),
+                            const SizedBox(width: 8),
+                            Text(
+                              getText("selectedToDate"),
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                            ),
+                            const Spacer(),
+                            Text(
+                              DateFormat('dd MMMM yyyy').format(_toDate!),
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
               const SizedBox(height: 20),
 
               // Age Details Section
@@ -453,68 +792,6 @@ ${getText("shareMessage")}
                 const SizedBox(height: 20),
               ],
 
-              // Gradient Button
-              GradientButton(
-                text: _selectedDate == null ? getText("selectBirthDate") : getText("recalculate"),
-                icon: Icons.calendar_month,
-                isLoading: _isLoading,
-                onPressed: () async {
-                  HapticFeedback.mediumImpact();
-                  DateTime? picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate ?? DateTime(2000),
-                    firstDate: DateTime(1900),
-                    lastDate: DateTime.now(),
-                    builder: (context, child) {
-                      return Theme(
-                        data: Theme.of(context).copyWith(
-                          colorScheme: const ColorScheme.light(
-                            primary: Color(0xFF6366F1),
-                            onPrimary: Colors.white,
-                            onSurface: Colors.black,
-                          ),
-                        ),
-                        child: child!,
-                      );
-                    },
-                  );
-                  if (picked != null) {
-                    setState(() => _selectedDate = picked);
-                    _calculateAge();
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Selected Date Display
-              if (_selectedDate != null)
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    leading: Icon(Icons.info_outline, color: const Color(0xFF6366F1)),
-                    title: Text(getText("selectedDate")),
-                    subtitle: Text(DateFormat('dd MMMM yyyy').format(_selectedDate!)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit_calendar),
-                      onPressed: () async {
-                        DateTime? picked = await showDatePicker(
-                          context: context,
-                          initialDate: _selectedDate!,
-                          firstDate: DateTime(1900),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked != null) {
-                          setState(() => _selectedDate = picked);
-                          _calculateAge();
-                        }
-                      },
-                    ),
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-
               // Fun Fact
               if (_ageDetails.isNotEmpty)
                 Container(
@@ -572,7 +849,7 @@ ${getText("shareMessage")}
   }
 
   String _getFunFact() {
-    if (_selectedDate == null) return "";
+    if (_fromDate == null || _toDate == null) return "";
 
     int age = _ageDetails['years'];
     if (age == 0) return "🎉 Welcome to the world! You're a newborn!";
