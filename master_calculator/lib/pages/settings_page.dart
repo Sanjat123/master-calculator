@@ -188,7 +188,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
-                ListTile(
+                /*   ListTile(
                   leading: const Icon(Icons.info, color: Color(0xFF8B5CF6)),
                   title: const Text("About App"),
                   subtitle: const Text("Learn more about Master Calculator"),
@@ -210,7 +210,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
                   subtitle: const Text("Share with friends and family"),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () => _shareApp(context),
-                ),
+                ),  */
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip, color: Color(0xFF6366F1)),
@@ -588,7 +588,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Last Updated: April 2026",
+                "Last Updated: 19 April 2026",
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 12),
@@ -655,7 +655,7 @@ class _SettingsPageState extends State<SettingsPage> with SingleTickerProviderSt
               ),
               SizedBox(height: 4),
               Text(
-                "For any privacy concerns, please contact us at:\nsupport@mastercalculator.com",
+                "For any privacy concerns, please contact us at:\nsupport@studentnagri.com",
                 style: TextStyle(fontSize: 13),
               ),
             ],

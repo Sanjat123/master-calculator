@@ -645,7 +645,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     },
                   ),
                 ),
-                ListTile(
+        /*        ListTile(
                   leading: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                   title: Text(isDark ? getText("darkMode") : getText("lightMode")),
                   trailing: Switch(
@@ -689,7 +689,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     Navigator.pop(context);
                     _showPrivacyPolicy();
                   },
-                ),
+                ),   */
                 const Divider(),
                 ListTile(
                   leading: Icon(loggedIn ? Icons.logout : Icons.login, color: Colors.red),

@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:236224889254:android:0deb1f6a9963a9e5560f67",
+        "mobilesdk_app_id": "1:236224889254:android:44a3c09f28efec7d560f67",
         "android_client_info": {
-          "package_name": "com.example.master_calculator"
+          "package_name": "com.Master.Calculator"
         }
       },
       "oauth_client": [
@@ -29,6 +29,57 @@
             {
               "client_id": "236224889254-sqe6qppp55v41rl0oet1oruqdelmregs.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "236224889254-p8e9j9u26ri9bdd569412htcteapb9jf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.masterCalculator"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:236224889254:android:0deb1f6a9963a9e5560f67",
+        "android_client_info": {
+          "package_name": "com.example.master_calculator"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "236224889254-s9deb60lb5akjn94bqtp4bptpi6sfn4v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.master_calculator",
+            "certificate_hash": "de39d574cf3e301b04a7b3e04cab367f17e68eca"
+          }
+        },
+        {
+          "client_id": "236224889254-sqe6qppp55v41rl0oet1oruqdelmregs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVpNLdAt5hkEi_CYML0FCAzIEwpvh7MPQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "236224889254-sqe6qppp55v41rl0oet1oruqdelmregs.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "236224889254-p8e9j9u26ri9bdd569412htcteapb9jf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.masterCalculator"
+              }
             }
           ]
         }

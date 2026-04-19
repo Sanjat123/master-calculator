@@ -1,4 +1,4 @@
-package com.example.master_calculator
+package com.Master.Calculator
 
 import io.flutter.embedding.android.FlutterActivity
 

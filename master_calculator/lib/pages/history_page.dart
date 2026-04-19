@@ -401,16 +401,7 @@ class _HistoryPageState extends State<HistoryPage> with SingleTickerProviderStat
           ),
           if (!_searchQuery.isNotEmpty && !_showFavoritesOnly && _selectedFilter == "All")
             const SizedBox(height: 16),
-          if (!_searchQuery.isNotEmpty && !_showFavoritesOnly && _selectedFilter == "All")
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.calculate),
-              label: const Text("Go to Calculator"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              ),
-            ),
+
         ],
       ),
     );

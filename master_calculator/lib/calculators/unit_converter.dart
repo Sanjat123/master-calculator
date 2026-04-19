@@ -26,16 +26,71 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
   List<String> _favorites = [];
   bool _showFavorites = false;
   bool _isLoading = false;
-  double _inputValue = 0;
   final GlobalKey _resultKey = GlobalKey();
 
   late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
 
-  // Complete unit conversions
+  // Language translations
+  Map<String, Map<String, String>> _translations = {
+    "English": {
+      "title": "Unit Converter",
+      "category": "Category",
+      "value": "Value to Convert",
+      "from": "From",
+      "to": "To",
+      "convert": "Convert",
+      "result": "Converted Value",
+      "favorites": "Favorites",
+      "addFavorite": "Add to Favorites",
+      "removeFavorite": "Remove from Favorites",
+      "copy": "Copy Result",
+      "share": "Share",
+      "language": "Language",
+      "enterValue": "Enter value to convert",
+      "copied": "Copied to clipboard!",
+      "quickConversions": "Quick Conversions",
+      "savedToHistory": "Saved to history",
+      "shareTitle": "Unit Conversion Result",
+      "shareMessage": "Check out my unit conversion from Master Calculator",
+      "swapUnits": "Swap Units",
+      "clearAll": "Clear All",
+      "history": "History",
+    },
+    "Hindi": {
+      "title": "यूनिट कनवर्टर",
+      "category": "श्रेणी",
+      "value": "मान कनवर्ट करें",
+      "from": "से",
+      "to": "को",
+      "convert": "बदलें",
+      "result": "परिवर्तित मान",
+      "favorites": "पसंदीदा",
+      "addFavorite": "पसंदीदा में जोड़ें",
+      "removeFavorite": "पसंदीदा से हटाएं",
+      "copy": "परिणाम कॉपी करें",
+      "share": "साझा करें",
+      "language": "भाषा",
+      "enterValue": "कनवर्ट करने के लिए मान दर्ज करें",
+      "copied": "क्लिपबोर्ड पर कॉपी किया गया!",
+      "quickConversions": "त्वरित रूपांतरण",
+      "savedToHistory": "इतिहास में सहेजा गया",
+      "shareTitle": "यूनिट रूपांतरण परिणाम",
+      "shareMessage": "मास्टर कैलकुलेटर से मेरा यूनिट रूपांतरण देखें",
+      "swapUnits": "इकाइयां बदलें",
+      "clearAll": "सभी साफ़ करें",
+      "history": "इतिहास",
+    },
+  };
+
+  String getText(String key) {
+    return _translations[_language]?[key] ?? _translations["English"]![key]!;
+  }
+
+  // Complete unit conversions Data Structure
   final Map<String, Map<String, dynamic>> _categories = {
     "Length": {
-      "icon": Icons.straighten,
+      "icon": Icons.straighten_rounded,
       "color": const Color(0xFF6366F1),
       "units": {
         "Meter": 1.0,
@@ -49,11 +104,10 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         "Foot": 3.28084,
         "Inch": 39.3701,
         "Nautical Mile": 0.000539957,
-        "Light Year": 1.057e-16,
       },
     },
     "Weight": {
-      "icon": Icons.fitness_center,
+      "icon": Icons.monitor_weight_rounded,
       "color": const Color(0xFF10B981),
       "units": {
         "Kilogram": 1.0,
@@ -64,11 +118,10 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         "Pound": 2.20462,
         "Ounce": 35.274,
         "Stone": 0.157473,
-        "US Ton": 0.00110231,
       },
     },
     "Temperature": {
-      "icon": Icons.thermostat,
+      "icon": Icons.thermostat_rounded,
       "color": const Color(0xFFEF4444),
       "units": {
         "Celsius": "C",
@@ -105,13 +158,10 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         "Cubic Inch": 61.0237,
         "Gallon (US)": 0.264172,
         "Gallon (UK)": 0.219969,
-        "Quart (US)": 1.05669,
-        "Pint (US)": 2.11338,
-        "Fluid Ounce (US)": 33.814,
       },
     },
     "Speed": {
-      "icon": Icons.speed,
+      "icon": Icons.speed_rounded,
       "color": const Color(0xFF8B5CF6),
       "units": {
         "Meter/Second": 1.0,
@@ -119,8 +169,6 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         "Mile/Hour": 2.23694,
         "Knot": 1.94384,
         "Foot/Second": 3.28084,
-        "Mach": 0.00293858,
-        "Speed of Light": 3.3356e-9,
       },
     },
     "Time": {
@@ -135,40 +183,10 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         "Hour": 0.000277778,
         "Day": 1.15741e-5,
         "Week": 1.65344e-6,
-        "Month": 3.805e-7,
-        "Year": 3.171e-8,
-      },
-    },
-    "Energy": {
-      "icon": Icons.bolt,
-      "color": const Color(0xFFF97316),
-      "units": {
-        "Joule": 1.0,
-        "Kilojoule": 0.001,
-        "Calorie": 0.239006,
-        "Kilocalorie": 0.000239006,
-        "Watt Hour": 0.000277778,
-        "Kilowatt Hour": 2.77778e-7,
-        "Electronvolt": 6.242e+18,
-        "BTU": 0.000947817,
-      },
-    },
-    "Pressure": {
-      "icon": Icons.speed_outlined,
-      "color": const Color(0xFF14B8A6),
-      "units": {
-        "Pascal": 1.0,
-        "Kilopascal": 0.001,
-        "Bar": 0.00001,
-        "Millibar": 0.01,
-        "Atmosphere": 9.86923e-6,
-        "PSI": 0.000145038,
-        "Torr": 0.00750062,
-        "MMHG": 0.00750062,
       },
     },
     "Data": {
-      "icon": Icons.storage,
+      "icon": Icons.data_usage_rounded,
       "color": const Color(0xFF3B82F6),
       "units": {
         "Byte": 1.0,
@@ -183,93 +201,50 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         "Gigabit": 8e-9,
       },
     },
-  };
-
-  // Language translations
-  Map<String, Map<String, String>> _translations = {
-    "English": {
-      "title": "Unit Converter",
-      "category": "Category",
-      "value": "Value to Convert",
-      "from": "From",
-      "to": "To",
-      "convert": "Convert",
-      "result": "Converted Value",
-      "favorites": "Favorites",
-      "addFavorite": "Add to Favorites",
-      "removeFavorite": "Remove from Favorites",
-      "copy": "Copy Result",
-      "share": "Share",
-      "language": "Language",
-      "enterValue": "Enter value to convert",
-      "copied": "Copied to clipboard!",
-      "quickConversions": "Quick Conversions",
-      "savedToHistory": "Saved to history",
-      "shareTitle": "Unit Conversion Result",
-      "shareMessage": "Check out my unit conversion from Master Calculator",
-    },
-    "Hindi": {
-      "title": "यूनिट कनवर्टर",
-      "category": "श्रेणी",
-      "value": "मान कनवर्ट करें",
-      "from": "से",
-      "to": "को",
-      "convert": "बदलें",
-      "result": "परिवर्तित मान",
-      "favorites": "पसंदीदा",
-      "addFavorite": "पसंदीदा में जोड़ें",
-      "removeFavorite": "पसंदीदा से हटाएं",
-      "copy": "परिणाम कॉपी करें",
-      "share": "साझा करें",
-      "language": "भाषा",
-      "enterValue": "कनवर्ट करने के लिए मान दर्ज करें",
-      "copied": "क्लिपबोर्ड पर कॉपी किया गया!",
-      "quickConversions": "त्वरित रूपांतरण",
-      "savedToHistory": "इतिहास में सहेजा गया",
-      "shareTitle": "यूनिट रूपांतरण परिणाम",
-      "shareMessage": "मास्टर कैलकुलेटर से मेरा यूनिट रूपांतरण देखें",
+    "Pressure": {
+      "icon": Icons.speed_outlined,
+      "color": const Color(0xFF14B8A6),
+      "units": {
+        "Pascal": 1.0,
+        "Kilopascal": 0.001,
+        "Bar": 0.00001,
+        "PSI": 0.000145038,
+      },
     },
   };
-
-  String getText(String key) {
-    return _translations[_language]?[key] ?? _translations["English"]![key]!;
-  }
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
-    );
+    _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
     _animationController.forward();
-    _valueController.addListener(_onValueChanged);
+    _valueController.addListener(_performConversion);
     _loadFavorites();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
-    _valueController.removeListener(_onValueChanged);
     _valueController.dispose();
     super.dispose();
   }
 
   void _loadFavorites() {
-    // Load from SharedPreferences in real app
-    _favorites = ["Length: Meter to Kilometer", "Weight: Kilogram to Pound"];
-  }
-
-  void _onValueChanged() {
-    _performConversion();
+    // Load favorites from SharedPreferences
+    _favorites = [];
   }
 
   void _performConversion() {
+    if (_valueController.text.isEmpty) {
+      setState(() => _result = "0");
+      return;
+    }
+
     double value = double.tryParse(_valueController.text) ?? 0;
-    _inputValue = value;
 
     if (_categories[_category]!["isSpecial"] == true) {
       _convertTemperature(value);
@@ -279,23 +254,13 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
   }
 
   void _convertStandard(double value) {
-    if (value == 0) {
-      setState(() {
-        _result = "0";
-      });
-      return;
-    }
-
     try {
-      double inBase = value / _categories[_category]!["units"][_fromUnit];
-      double converted = inBase * _categories[_category]!["units"][_toUnit];
-      setState(() {
-        _result = _formatResult(converted);
-      });
+      double fromRate = _categories[_category]!["units"][_fromUnit];
+      double toRate = _categories[_category]!["units"][_toUnit];
+      double converted = (value / fromRate) * toRate;
+      setState(() => _result = _formatResult(converted));
     } catch (e) {
-      setState(() {
-        _result = "Error";
-      });
+      setState(() => _result = "Error");
     }
   }
 
@@ -315,30 +280,24 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
         else if (_toUnit == "Fahrenheit") converted = (value - 273.15) * 9/5 + 32;
         else converted = value;
       }
-      setState(() {
-        _result = converted.toStringAsFixed(2);
-      });
+      setState(() => _result = converted.toStringAsFixed(2));
     } catch (e) {
-      setState(() {
-        _result = "Error";
-      });
+      setState(() => _result = "Error");
     }
   }
 
   String _formatResult(double value) {
-    if (value >= 1e6 || value <= 1e-6) {
-      return value.toStringAsExponential(4);
-    }
-    if (value == value.roundToDouble()) {
-      return value.round().toString();
-    }
+    if (value == 0) return "0";
+    if (value.abs() >= 1e6 || value.abs() <= 1e-4) return value.toStringAsExponential(3);
     return value.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
   }
 
   void _convert() async {
     double value = double.tryParse(_valueController.text) ?? 0;
     if (value == 0 && _valueController.text.isNotEmpty) {
-      _showError(getText("enterValue"));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid value"), backgroundColor: Colors.red),
+      );
       return;
     }
 
@@ -355,27 +314,26 @@ class _UnitConverterState extends State<UnitConverter> with SingleTickerProvider
     );
 
     HapticFeedback.lightImpact();
-    _showSnackBar(getText("savedToHistory"));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Saved to history"), duration: Duration(seconds: 1)),
+    );
   }
 
-  void _toggleFavorite() {
-    String favorite = "$_category: $_fromUnit to $_toUnit";
-    if (_favorites.contains(favorite)) {
-      setState(() {
-        _favorites.remove(favorite);
-      });
-      _showSnackBar(getText("removeFavorite"));
-    } else {
-      setState(() {
-        _favorites.add(favorite);
-      });
-      _showSnackBar(getText("addFavorite"));
-    }
+  void _swapUnits() {
+    setState(() {
+      String temp = _fromUnit;
+      _fromUnit = _toUnit;
+      _toUnit = temp;
+    });
+    _performConversion();
+    HapticFeedback.mediumImpact();
   }
 
   void _copyResult() {
     Clipboard.setData(ClipboardData(text: "$_result $_toUnit"));
-    _showSnackBar(getText("copied"));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Copied to clipboard!"), duration: Duration(seconds: 1)),
+    );
   }
 
   Future<void> _shareResult() async {
@@ -407,31 +365,25 @@ ${getText("shareMessage")}
     }
   }
 
-  void _swapUnits() {
-    setState(() {
-      String temp = _fromUnit;
-      _fromUnit = _toUnit;
-      _toUnit = temp;
-    });
-    _performConversion();
-  }
-
   void _toggleLanguage() {
     setState(() {
       _language = _language == "English" ? "Hindi" : "English";
     });
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
-    );
+  void _toggleFavorite() {
+    String favorite = "$_category: $_fromUnit to $_toUnit";
+    if (_favorites.contains(favorite)) {
+      setState(() => _favorites.remove(favorite));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Removed from favorites"), duration: Duration(seconds: 1)),
+      );
+    } else {
+      setState(() => _favorites.add(favorite));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Added to favorites"), duration: Duration(seconds: 1)),
+      );
+    }
   }
 
   String _getConversionRate() {
@@ -439,7 +391,6 @@ ${getText("shareMessage")}
       if (_fromUnit == "Celsius" && _toUnit == "Fahrenheit") return "°F = (°C × 9/5) + 32";
       if (_fromUnit == "Fahrenheit" && _toUnit == "Celsius") return "°C = (°F - 32) × 5/9";
       if (_fromUnit == "Celsius" && _toUnit == "Kelvin") return "K = °C + 273.15";
-      if (_fromUnit == "Kelvin" && _toUnit == "Celsius") return "°C = K - 273.15";
       return "Special formula";
     }
     double rate = _categories[_category]!["units"][_toUnit] / _categories[_category]!["units"][_fromUnit];
@@ -449,13 +400,12 @@ ${getText("shareMessage")}
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentCategory = _categories[_category]!;
-    final accentColor = currentCategory["color"];
+    final accentColor = _categories[_category]!["color"];
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(getText("title")),
+        title: Text(getText("title"), style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -470,332 +420,255 @@ ${getText("shareMessage")}
             onPressed: () => setState(() => _showFavorites = !_showFavorites),
             tooltip: getText("favorites"),
           ),
-          if (_result != "0") ...[
-            IconButton(
-              icon: const Icon(Icons.share),
-              onPressed: _shareResult,
-              tooltip: getText("share"),
-            ),
-            IconButton(
-              icon: const Icon(Icons.copy),
-              onPressed: _copyResult,
-              tooltip: getText("copy"),
-            ),
-          ],
+          IconButton(
+            icon: const Icon(Icons.history_rounded),
+            onPressed: () {},
+            tooltip: getText("history"),
+          ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Category Selector
-            Container(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _categories.keys.length,
-                itemBuilder: (context, index) {
-                  String key = _categories.keys.elementAt(index);
-                  var category = _categories[key]!;
-                  bool isSelected = _category == key;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _category = key;
-                        _fromUnit = _categories[key]!["units"].keys.first;
-                        _toUnit = _categories[key]!["units"].keys.last;
-                      });
-                      _performConversion();
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 12),
-                      width: 80,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? category["color"].withOpacity(0.2)
-                            : (isDark ? const Color(0xFF1E293B) : Colors.grey.shade100),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isSelected
-                              ? category["color"]
-                              : (isDark ? Colors.grey.shade800 : Colors.grey.shade300),
-                          width: 1.5,
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Category Selector
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: _categories.keys.map((String key) {
+                    bool isSelected = _category == key;
+                    var cat = _categories[key]!;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _category = key;
+                          _fromUnit = cat["units"].keys.first;
+                          _toUnit = cat["units"].keys.last;
+                        });
+                        _performConversion();
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.only(right: 12),
+                        width: 85,
+                        decoration: BoxDecoration(
+                          color: isSelected ? cat["color"] : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: isSelected ? [BoxShadow(color: cat["color"].withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
+                          border: Border.all(color: isSelected ? Colors.transparent : (isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
                         ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(category["icon"],
-                              color: isSelected ? category["color"] : null,
-                              size: 28),
-                          const SizedBox(height: 6),
-                          Text(
-                            key,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isSelected ? category["color"] : null,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Main Converter Card
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    // Value Input
-                    TextField(
-                      controller: _valueController,
-                      decoration: InputDecoration(
-                        labelText: getText("value"),
-                        hintText: "Enter value (e.g., 100)",
-                        prefixIcon: Icon(Icons.numbers, color: accentColor),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // From/To Units
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(getText("from"), style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: _fromUnit,
-                                    isExpanded: true,
-                                    items: _categories[_category]!["units"].keys.map((unit) {
-                                      return DropdownMenuItem(value: unit, child: Text(unit));
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setState(() => _fromUnit = value!);
-                                      _performConversion();
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 12),
-                          child: IconButton(
-                            icon: const Icon(Icons.swap_horiz),
-                            onPressed: _swapUnits,
-                            color: accentColor,
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(getText("to"), style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: _toUnit,
-                                    isExpanded: true,
-                                    items: _categories[_category]!["units"].keys.map((unit) {
-                                      return DropdownMenuItem(value: unit, child: Text(unit));
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setState(() => _toUnit = value!);
-                                      _performConversion();
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Favorite Button
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            _favorites.contains("$_category: $_fromUnit to $_toUnit")
-                                ? Icons.star
-                                : Icons.star_border,
-                            color: Colors.amber,
-                          ),
-                          onPressed: _toggleFavorite,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _favorites.contains("$_category: $_fromUnit to $_toUnit")
-                              ? getText("removeFavorite")
-                              : getText("addFavorite"),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Convert Button
-            GradientButton(
-              text: getText("convert"),
-              icon: Icons.calculate,
-              isLoading: _isLoading,
-              onPressed: _convert,
-            ),
-
-            // Result Card
-            const SizedBox(height: 20),
-            RepaintBoundary(
-              key: _resultKey,
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        accentColor.withOpacity(0.1),
-                        accentColor.withOpacity(0.05),
-                      ],
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Text(
-                          getText("result"),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "$_result $_toUnit",
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: accentColor,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
+                        child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.copy, size: 20),
-                              onPressed: _copyResult,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                "1 $_fromUnit = ${_getConversionRate()} $_toUnit",
-                                style: const TextStyle(fontSize: 12),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
+                            Icon(cat["icon"], color: isSelected ? Colors.white : cat["color"], size: 28),
+                            const SizedBox(height: 5),
+                            Text(key, style: TextStyle(color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87), fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
-            ),
 
-            // Favorites Section
-            if (_showFavorites && _favorites.isNotEmpty) ...[
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
+
+              // Converter Card
               Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                 elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      TextField(
+                        controller: _valueController,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          hintText: "0.00",
+                          labelText: getText("value"),
+                          prefixIcon: Icon(Icons.edit_note_rounded, color: accentColor),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       Row(
                         children: [
-                          Icon(Icons.star, color: Colors.amber),
-                          const SizedBox(width: 8),
-                          Text(
-                            getText("favorites"),
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          Expanded(child: _buildUnitDropdown(true, accentColor, isDark)),
+                          IconButton(
+                            onPressed: _swapUnits,
+                            icon: Icon(Icons.swap_horizontal_circle_rounded, color: accentColor, size: 40),
+                            tooltip: getText("swapUnits"),
                           ),
+                          Expanded(child: _buildUnitDropdown(false, accentColor, isDark)),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      ..._favorites.map((favorite) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: const Icon(Icons.star, size: 16, color: Colors.amber),
-                            title: Text(favorite, style: const TextStyle(fontSize: 14)),
-                            trailing: const Icon(Icons.arrow_forward, size: 16),
-                            onTap: () {
-                              var parts = favorite.split(": ");
-                              var conversion = parts[1].split(" to ");
-                              setState(() {
-                                _category = parts[0];
-                                _fromUnit = conversion[0];
-                                _toUnit = conversion[1];
-                              });
-                              _performConversion();
-                            },
-                            dense: true,
-                          ),
-                        );
-                      }),
+                      const SizedBox(height: 20),
+                      GradientButton(
+                        text: getText("convert"),
+                        icon: Icons.calculate,
+                        isLoading: _isLoading,
+                        onPressed: _convert,
+                      ),
                     ],
                   ),
                 ),
               ),
-            ],
 
-            // Quick Conversions
-            const SizedBox(height: 16),
-            _buildQuickConversions(accentColor),
+              const SizedBox(height: 25),
+
+              // Result Box
+              RepaintBoundary(
+                key: _resultKey,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [accentColor, accentColor.withOpacity(0.7)]),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [BoxShadow(color: accentColor.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(getText("result").toUpperCase(), style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+                      FittedBox(
+                        child: Text("$_result $_toUnit", style: const TextStyle(color: Colors.white, fontSize: 35, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        "1 $_fromUnit = ${_getConversionRate()} $_toUnit",
+                        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _actionButton(Icons.copy_all_rounded, getText("copy"), _copyResult),
+                          const SizedBox(width: 15),
+                          _actionButton(Icons.share_rounded, getText("share"), _shareResult),
+                          const SizedBox(width: 15),
+                          _actionButton(Icons.star_border, getText("favorites"), _toggleFavorite),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ),
+
+              // Favorites Section
+              if (_showFavorites && _favorites.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.amber),
+                            const SizedBox(width: 8),
+                            Text(
+                              getText("favorites"),
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ..._favorites.map((favorite) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: const Icon(Icons.star, size: 16, color: Colors.amber),
+                              title: Text(favorite, style: const TextStyle(fontSize: 14)),
+                              trailing: const Icon(Icons.arrow_forward, size: 16),
+                              onTap: () {
+                                var parts = favorite.split(": ");
+                                var conversion = parts[1].split(" to ");
+                                setState(() {
+                                  _category = parts[0];
+                                  _fromUnit = conversion[0];
+                                  _toUnit = conversion[1];
+                                });
+                                _performConversion();
+                              },
+                              dense: true,
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              // Quick Conversions
+              const SizedBox(height: 20),
+              _buildQuickConversions(accentColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnitDropdown(bool isFrom, Color color, bool isDark) {
+    String currentValue = isFrom ? _fromUnit : _toUnit;
+
+    List<DropdownMenuItem<String>> menuItems = (_categories[_category]!["units"] as Map<String, dynamic>)
+        .keys
+        .map<DropdownMenuItem<String>>((String value) {
+      return DropdownMenuItem<String>(
+        value: value,
+        child: Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: isDark ? Colors.white : Colors.black87)),
+      );
+    }).toList();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: currentValue,
+          isExpanded: true,
+          icon: Icon(Icons.arrow_drop_down, color: color),
+          dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          items: menuItems,
+          onChanged: (val) {
+            setState(() {
+              if (isFrom) _fromUnit = val!;
+              else _toUnit = val!;
+            });
+            _performConversion();
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 5),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -828,7 +701,7 @@ ${getText("shareMessage")}
           getText("quickConversions"),
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -842,7 +715,7 @@ ${getText("shareMessage")}
               ),
               child: Text(
                 "${conv["from"]} = ${conv["result"]}",
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 12, color: accentColor),
               ),
             );
           }).toList(),
