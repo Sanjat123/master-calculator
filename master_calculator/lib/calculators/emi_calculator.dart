@@ -20,7 +20,7 @@ class EMICalculator extends StatefulWidget {
 class _EMICalculatorState extends State<EMICalculator> with SingleTickerProviderStateMixin {
   final TextEditingController _principalController = TextEditingController();
   final TextEditingController _rateController = TextEditingController();
-  final TextEditingController _tenureController = TextEditingController();
+  final TextEditingController _tenureValueController = TextEditingController();
 
   String _emi = "0";
   String _totalInterest = "0";
@@ -31,27 +31,39 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
   bool _showAmortization = false;
   final GlobalKey _resultKey = GlobalKey();
 
-  double _principalSlider = 500000;
-  double _rateSlider = 10.0;
-  double _tenureSlider = 5.0;
+  // Tenure selection
+  String _tenureType = "Years"; // Years, Months, Days
+  double _tenureYears = 1.0;
+  int _tenureMonths = 12;
+  int _tenureDays = 365;
+
+  // Loan amount in rupees
+  int _principalAmount = 10000;
+
+  // Interest rate
+  double _interestRate = 12.0;
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   List<Map<String, dynamic>> _amortizationSchedule = [];
 
   final List<Map<String, dynamic>> _loanTypes = [
-    {"name": "Home Loan", "minRate": 8.0, "maxRate": 12.0, "color": const Color(0xFF6366F1), "icon": Icons.home, "maxTenure": 30},
-    {"name": "Car Loan", "minRate": 9.0, "maxRate": 15.0, "color": const Color(0xFF10B981), "icon": Icons.directions_car, "maxTenure": 7},
-    {"name": "Personal Loan", "minRate": 10.0, "maxRate": 18.0, "color": const Color(0xFFF59E0B), "icon": Icons.person, "maxTenure": 5},
-    {"name": "Education Loan", "minRate": 8.5, "maxRate": 13.0, "color": const Color(0xFFEC4899), "icon": Icons.school, "maxTenure": 15},
+    {"name": "Home Loan", "minRate": 8.0, "maxRate": 12.0, "color": const Color(0xFF6366F1), "icon": Icons.home, "maxTenureYears": 30},
+    {"name": "Car Loan", "minRate": 9.0, "maxRate": 15.0, "color": const Color(0xFF10B981), "icon": Icons.directions_car, "maxTenureYears": 7},
+    {"name": "Personal Loan", "minRate": 10.0, "maxRate": 18.0, "color": const Color(0xFFF59E0B), "icon": Icons.person, "maxTenureYears": 5},
+    {"name": "Education Loan", "minRate": 8.5, "maxRate": 13.0, "color": const Color(0xFFEC4899), "icon": Icons.school, "maxTenureYears": 15},
+    {"name": "Business Loan", "minRate": 11.0, "maxRate": 20.0, "color": const Color(0xFF8B5CF6), "icon": Icons.business, "maxTenureYears": 10},
   ];
 
   final Map<String, Map<String, String>> _translations = {
     "English": {
       "title": "EMI Calculator",
-      "principal": "Principal Amount",
+      "loanAmount": "Loan Amount (₹)",
       "interestRate": "Interest Rate (%)",
-      "tenure": "Tenure (Years)",
+      "tenure": "Tenure",
+      "years": "Years",
+      "months": "Months",
+      "days": "Days",
       "calculate": "Calculate EMI",
       "monthlyEMI": "Monthly EMI",
       "totalInterest": "Total Interest",
@@ -67,17 +79,20 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
       "savedToHistory": "Saved to history",
       "shareTitle": "EMI Calculation Results",
       "shareMessage": "Check out my EMI calculation from Master Calculator",
-      "principalAmount": "Principal Amount",
-      "interestRateLabel": "Interest Rate",
-      "tenureLabel": "Loan Tenure",
-      "paymentBreakdown": "Payment Breakdown",
-      "totalPayment": "Total Payment",
+      "enterAmount": "Enter loan amount",
+      "enterRate": "Enter interest rate",
+      "enterTenure": "Enter tenure",
+      "minAmount": "Minimum amount: ₹10",
+      "maxRate": "Maximum rate: 48%",
     },
     "Hindi": {
       "title": "ईएमआई कैलकुलेटर",
-      "principal": "मूल राशि",
+      "loanAmount": "ऋण राशि (₹)",
       "interestRate": "ब्याज दर (%)",
-      "tenure": "अवधि (वर्ष)",
+      "tenure": "अवधि",
+      "years": "साल",
+      "months": "महीने",
+      "days": "दिन",
       "calculate": "ईएमआई गणना करें",
       "monthlyEMI": "मासिक ईएमआई",
       "totalInterest": "कुल ब्याज",
@@ -93,11 +108,11 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
       "savedToHistory": "इतिहास में सहेजा गया",
       "shareTitle": "ईएमआई गणना परिणाम",
       "shareMessage": "मास्टर कैलकुलेटर से मेरी ईएमआई गणना देखें",
-      "principalAmount": "मूल राशि",
-      "interestRateLabel": "ब्याज दर",
-      "tenureLabel": "ऋण अवधि",
-      "paymentBreakdown": "भुगतान विवरण",
-      "totalPayment": "कुल भुगतान",
+      "enterAmount": "ऋण राशि दर्ज करें",
+      "enterRate": "ब्याज दर दर्ज करें",
+      "enterTenure": "अवधि दर्ज करें",
+      "minAmount": "न्यूनतम राशि: ₹10",
+      "maxRate": "अधिकतम दर: 48%",
     },
   };
 
@@ -109,9 +124,9 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
     _animationController = AnimationController(duration: const Duration(milliseconds: 500), vsync: this);
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack));
 
-    _principalController.text = _principalSlider.toStringAsFixed(0);
-    _rateController.text = _rateSlider.toStringAsFixed(1);
-    _tenureController.text = _tenureSlider.toStringAsFixed(1);
+    _principalController.text = "10000";
+    _rateController.text = "12";
+    _updateTenureController();
     _calculateEMI();
   }
 
@@ -120,22 +135,64 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
     _animationController.dispose();
     _principalController.dispose();
     _rateController.dispose();
-    _tenureController.dispose();
+    _tenureValueController.dispose();
     super.dispose();
   }
 
+  void _updateTenureController() {
+    if (_tenureType == "Years") {
+      _tenureValueController.text = _tenureYears.toStringAsFixed(1);
+    } else if (_tenureType == "Months") {
+      _tenureValueController.text = _tenureMonths.toString();
+    } else {
+      _tenureValueController.text = _tenureDays.toString();
+    }
+  }
+
+  double _getTotalMonths() {
+    if (_tenureType == "Years") {
+      return _tenureYears * 12;
+    } else if (_tenureType == "Months") {
+      return _tenureMonths.toDouble();
+    } else {
+      return _tenureDays / 30.44; // Average days in a month
+    }
+  }
+
   void _calculateEMI() async {
+    double principal = double.tryParse(_principalController.text) ?? 0;
+    double rate = double.tryParse(_rateController.text) ?? 0;
+    double totalMonths = _getTotalMonths();
+
+    if (principal < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Minimum loan amount is ₹10"), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    if (rate < 0 || rate > 48) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Interest rate must be between 0% and 48%"), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    if (totalMonths <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid tenure"), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 100));
 
-    double p = _principalSlider;
-    double r = _rateSlider / 12 / 100;
-    double t = _tenureSlider * 12;
-
-    if (p > 0 && r > 0 && t > 0) {
-      double emi = (p * r * pow(1 + r, t)) / (pow(1 + r, t) - 1);
-      double totalAmount = emi * t;
-      double totalInterest = totalAmount - p;
+    if (principal > 0 && rate > 0 && totalMonths > 0) {
+      double monthlyRate = rate / 12 / 100;
+      double emi = (principal * monthlyRate * pow(1 + monthlyRate, totalMonths)) / (pow(1 + monthlyRate, totalMonths) - 1);
+      double totalAmount = emi * totalMonths;
+      double totalInterest = totalAmount - principal;
 
       setState(() {
         _emi = emi.toStringAsFixed(0);
@@ -145,11 +202,10 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
       });
 
       _animationController.forward(from: 0);
-      _calculateAmortization(p, r, t, emi);
+      _calculateAmortization(principal, monthlyRate, totalMonths, emi);
 
-      // Save to history
       await HistoryService.addToHistory(
-        expression: "${_loanTypes[_selectedLoanType]["name"]}: ₹${_principalSlider.toStringAsFixed(0)} at ${_rateSlider}% for ${_tenureSlider} years",
+        expression: "₹${_formatNumber(principal)} at ${rate}% for ${_getTenureText()}",
         result: "Monthly EMI: ₹$_emi, Total: ₹$_totalAmount",
         calculatorType: "EMI",
       );
@@ -160,20 +216,37 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
     }
   }
 
+  String _getTenureText() {
+    if (_tenureType == "Years") {
+      return "${_tenureYears.toStringAsFixed(1)} years";
+    } else if (_tenureType == "Months") {
+      return "$_tenureMonths months";
+    } else {
+      return "$_tenureDays days";
+    }
+  }
+
+  String _formatNumber(double value) {
+    if (value >= 10000000) return "${(value / 10000000).toStringAsFixed(2)} Cr";
+    if (value >= 100000) return "${(value / 100000).toStringAsFixed(2)} Lac";
+    return value.toStringAsFixed(0);
+  }
+
   void _calculateAmortization(double principal, double monthlyRate, double months, double emi) {
     List<Map<String, dynamic>> schedule = [];
     double balance = principal;
     double totalPrincipalPaid = 0;
     double totalInterestPaid = 0;
+    int monthsInt = months.toInt();
 
-    for (int i = 1; i <= months.toInt() && i <= 60; i++) {
+    for (int i = 1; i <= monthsInt && i <= 60; i++) {
       double interestPayment = balance * monthlyRate;
       double principalPayment = emi - interestPayment;
       balance -= principalPayment;
       totalPrincipalPaid += principalPayment;
       totalInterestPaid += interestPayment;
 
-      if (i % 12 == 0 || i == months.toInt()) {
+      if (i % 12 == 0 || i == monthsInt) {
         schedule.add({
           'year': (i / 12).ceil(),
           'principal': principalPayment,
@@ -190,9 +263,9 @@ class _EMICalculatorState extends State<EMICalculator> with SingleTickerProvider
   void _copyResults() {
     String results = """
 ${getText("title")} Results:
-${getText("principalAmount")}: ₹${_principalSlider.toStringAsFixed(0)}
-${getText("interestRateLabel")}: ${_rateSlider}%
-${getText("tenureLabel")}: ${_tenureSlider} years
+${getText("loanAmount")}: ₹${_formatNumber(double.parse(_principalController.text))}
+${getText("interestRate")}: ${_rateController.text}%
+${getText("tenure")}: ${_getTenureText()}
 ${getText("monthlyEMI")}: ₹$_emi
 ${getText("totalInterest")}: ₹$_totalInterest
 ${getText("totalAmount")}: ₹$_totalAmount
@@ -217,9 +290,9 @@ ${getText("totalAmount")}: ₹$_totalAmount
 
       final String shareText = """
 ${getText("shareTitle")}:
-${getText("principalAmount")}: ₹${_principalSlider.toStringAsFixed(0)}
-${getText("interestRateLabel")}: ${_rateSlider}%
-${getText("tenureLabel")}: ${_tenureSlider} years
+${getText("loanAmount")}: ₹${_formatNumber(double.parse(_principalController.text))}
+${getText("interestRate")}: ${_rateController.text}%
+${getText("tenure")}: ${_getTenureText()}
 ${getText("monthlyEMI")}: ₹$_emi
 ${getText("totalInterest")}: ₹$_totalInterest
 ${getText("totalAmount")}: ₹$_totalAmount
@@ -242,7 +315,7 @@ ${getText("shareMessage")}
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     double principalPercent = double.tryParse(_totalAmount) != 0
-        ? (_principalSlider / double.parse(_totalAmount) * 100)
+        ? (double.parse(_principalController.text) / double.parse(_totalAmount) * 100)
         : 0;
     double interestPercent = 100 - principalPercent;
 
@@ -293,12 +366,7 @@ ${getText("shareMessage")}
                       onSelected: (val) {
                         setState(() {
                           _selectedLoanType = index;
-                          _rateSlider = _loanTypes[index]["minRate"];
-                          _rateController.text = _rateSlider.toStringAsFixed(1);
-                          if (_tenureSlider > _loanTypes[index]["maxTenure"]) {
-                            _tenureSlider = _loanTypes[index]["maxTenure"].toDouble();
-                            _tenureController.text = _tenureSlider.toStringAsFixed(1);
-                          }
+                          _rateController.text = _loanTypes[index]["minRate"].toString();
                         });
                         _calculateEMI();
                       },
@@ -321,23 +389,75 @@ ${getText("shareMessage")}
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    _buildSliderRow(getText("principal"), "₹", _principalSlider, 10000, 10000000, (val) {
-                      setState(() => _principalSlider = val);
-                      _principalController.text = val.toStringAsFixed(0);
-                      _calculateEMI();
-                    }, accentColor, isDark),
-                    const Divider(height: 30),
-                    _buildSliderRow(getText("interestRate"), "%", _rateSlider, loan["minRate"], loan["maxRate"], (val) {
-                      setState(() => _rateSlider = val);
-                      _rateController.text = val.toStringAsFixed(1);
-                      _calculateEMI();
-                    }, accentColor, isDark),
-                    const Divider(height: 30),
-                    _buildSliderRow(getText("tenure"), "Y", _tenureSlider, 1, loan["maxTenure"].toDouble(), (val) {
-                      setState(() => _tenureSlider = val);
-                      _tenureController.text = val.toStringAsFixed(1);
-                      _calculateEMI();
-                    }, accentColor, isDark),
+                    // Loan Amount
+                    TextField(
+                      controller: _principalController,
+                      decoration: InputDecoration(
+                        labelText: getText("loanAmount"),
+                        hintText: getText("enterAmount"),
+                        prefixIcon: const Icon(Icons.currency_rupee),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        helperText: getText("minAmount"),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) => _calculateEMI(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Interest Rate
+                    TextField(
+                      controller: _rateController,
+                      decoration: InputDecoration(
+                        labelText: getText("interestRate"),
+                        hintText: getText("enterRate"),
+                        prefixIcon: const Icon(Icons.percent),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        helperText: getText("maxRate"),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) => _calculateEMI(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Tenure Type Selection
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTenureButton("Years", Icons.calendar_today, accentColor),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildTenureButton("Months", Icons.date_range, accentColor),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildTenureButton("Days", Icons.today, accentColor),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Tenure Value Input
+                    TextField(
+                      controller: _tenureValueController,
+                      decoration: InputDecoration(
+                        labelText: "${getText("tenure")} (${getText(_tenureType.toLowerCase())})",
+                        hintText: getText("enterTenure"),
+                        prefixIcon: const Icon(Icons.timeline),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        if (_tenureType == "Years") {
+                          _tenureYears = double.tryParse(value) ?? 1;
+                        } else if (_tenureType == "Months") {
+                          _tenureMonths = int.tryParse(value) ?? 12;
+                        } else {
+                          _tenureDays = int.tryParse(value) ?? 365;
+                        }
+                        _calculateEMI();
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -378,7 +498,7 @@ ${getText("shareMessage")}
                         Text(getText("monthlyEMI"), style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
                         const SizedBox(height: 8),
                         Text(
-                          "₹$_emi",
+                          "₹${_formatNumber(double.parse(_emi))}",
                           style: TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: accentColor),
                         ),
                         const SizedBox(height: 24),
@@ -466,7 +586,8 @@ ${getText("shareMessage")}
                                   children: [
                                     Text(getText("totalInterest"), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                                     const SizedBox(height: 4),
-                                    Text("₹$_totalInterest", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red)),
+                                    Text("₹${_formatNumber(double.parse(_totalInterest))}",
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red)),
                                   ],
                                 ),
                               ),
@@ -483,12 +604,28 @@ ${getText("shareMessage")}
                                   children: [
                                     Text(getText("totalAmount"), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                                     const SizedBox(height: 4),
-                                    Text("₹$_totalAmount", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)),
+                                    Text("₹${_formatNumber(double.parse(_totalAmount))}",
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)),
                                   ],
                                 ),
                               ),
                             ),
                           ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Tenure Info
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: accentColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "Tenure: ${_getTenureText()}",
+                            style: TextStyle(fontSize: 12, color: accentColor),
+                          ),
                         ),
                       ],
                     ),
@@ -541,7 +678,7 @@ ${getText("shareMessage")}
                                     style: const TextStyle(fontWeight: FontWeight.bold),
                                   ),
                                   Text(
-                                    "Balance: ₹${data['balance'].toStringAsFixed(0)}",
+                                    "Balance: ₹${_formatNumber(data['balance'])}",
                                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                                   ),
                                 ],
@@ -554,7 +691,7 @@ ${getText("shareMessage")}
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(getText("principalPaid"), style: const TextStyle(fontSize: 11)),
-                                        Text("₹${data['totalPrincipal'].toStringAsFixed(0)}",
+                                        Text("₹${_formatNumber(data['totalPrincipal'])}",
                                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                                       ],
                                     ),
@@ -564,7 +701,7 @@ ${getText("shareMessage")}
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(getText("interestPaid"), style: const TextStyle(fontSize: 11)),
-                                        Text("₹${data['totalInterest'].toStringAsFixed(0)}",
+                                        Text("₹${_formatNumber(data['totalInterest'])}",
                                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.red)),
                                       ],
                                     ),
@@ -573,7 +710,7 @@ ${getText("shareMessage")}
                               ),
                               const SizedBox(height: 6),
                               LinearProgressIndicator(
-                                value: data['balance'] / _principalSlider,
+                                value: data['balance'] / double.parse(_principalController.text),
                                 backgroundColor: Colors.grey.shade200,
                                 color: accentColor,
                               ),
@@ -596,38 +733,37 @@ ${getText("shareMessage")}
     );
   }
 
-  Widget _buildSliderRow(String label, String unit, double value, double min, double max, Function(double) onChanged, Color color, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildTenureButton(String type, IconData icon, Color color) {
+    bool isSelected = _tenureType == type;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _tenureType = type;
+          _updateTenureController();
+        });
+        _calculateEMI();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
           children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                "${value.toStringAsFixed(value > 100 ? 0 : 1)} $unit",
-                style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            Icon(icon, color: isSelected ? Colors.white : Colors.grey, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              getText(type.toLowerCase()),
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12,
               ),
             ),
           ],
         ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          activeColor: color,
-          inactiveColor: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-          divisions: 100,
-          label: "${value.toStringAsFixed(1)} $unit",
-          onChanged: onChanged,
-        ),
-      ],
+      ),
     );
   }
 
@@ -640,6 +776,7 @@ ${getText("shareMessage")}
       {"icon": "📊", "tip": "Choose shorter tenure to save total interest"},
       {"icon": "💳", "tip": "Maintain good CIBIL score for better rates"},
       {"icon": "🎯", "tip": "EMI should not exceed 40% of your monthly income"},
+      {"icon": "📅", "tip": "You can choose tenure in Years, Months, or Days"},
     ]
         : [
       {"icon": "💰", "tip": "अधिक डाउन पेमेंट से आपका EMI बोझ कम होता है"},
@@ -648,6 +785,7 @@ ${getText("shareMessage")}
       {"icon": "📊", "tip": "कुल ब्याज बचाने के लिए कम अवधि चुनें"},
       {"icon": "💳", "tip": "बेहतर दरों के लिए अच्छा CIBIL स्कोर बनाए रखें"},
       {"icon": "🎯", "tip": "EMI आपकी मासिक आय के 40% से अधिक नहीं होनी चाहिए"},
+      {"icon": "📅", "tip": "आप साल, महीने या दिनों में अवधि चुन सकते हैं"},
     ];
 
     return Column(

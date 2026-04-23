@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:math_expressions/math_expressions.dart';
 
-
 class StandardCalculator extends StatefulWidget {
   const StandardCalculator({super.key});
 
@@ -13,16 +12,10 @@ class StandardCalculator extends StatefulWidget {
 
 class _StandardCalculatorState extends State<StandardCalculator> {
   String _equation = "";
-  String _result = "";
-  String _expression = "";
-  bool _isRadians = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _equation = "";
-    _result = "0";
-  }
+  String _result = "0";
+  bool _isScientific = false;
+  bool _isSecondFunction = false;
+  bool _isRadians = true;
 
   void _buttonPressed(String buttonText) {
     HapticFeedback.lightImpact();
@@ -30,145 +23,79 @@ class _StandardCalculatorState extends State<StandardCalculator> {
       if (buttonText == "AC") {
         _equation = "";
         _result = "0";
-      }
-      else if (buttonText == "C") {
+        _isSecondFunction = false;
+      } else if (buttonText == "C") {
         if (_equation.isNotEmpty) {
           _equation = _equation.substring(0, _equation.length - 1);
         }
-        if (_equation.isEmpty) {
-          _result = "0";
-        }
-      }
-      else if (buttonText == "=") {
-        _calculateResult();
-      }
-      else if (buttonText == "sin") {
-        _equation += "sin(";
-      }
-      else if (buttonText == "cos") {
-        _equation += "cos(";
-      }
-      else if (buttonText == "tan") {
-        _equation += "tan(";
-      }
-      else if (buttonText == "log") {
-        _equation += "log(";
-      }
-      else if (buttonText == "ln") {
-        _equation += "ln(";
-      }
-      else if (buttonText == "√") {
-        _equation += "√(";
-      }
-      else if (buttonText == "x²") {
-        _equation += "^2";
-      }
-      else if (buttonText == "x³") {
-        _equation += "^3";
-      }
-      else if (buttonText == "1/x") {
-        _equation += "^-1";
-      }
-      else if (buttonText == "π") {
-        _equation += "3.14159";
-      }
-      else if (buttonText == "e") {
-        _equation += "2.71828";
-      }
-      else if (buttonText == "(") {
-        _equation += "(";
-      }
-      else if (buttonText == ")") {
-        _equation += ")";
-      }
-      else if (buttonText == "rad") {
+        if (_equation.isEmpty) _result = "0";
+      } else if (buttonText == "2nd") {
+        _isSecondFunction = !_isSecondFunction;
+        return;
+      } else if (buttonText == "=") {
+        _calculateResult(finalEval: true);
+      } else if (buttonText == "deg" || buttonText == "rad") {
         _isRadians = !_isRadians;
-      }
-      else {
-        _equation += buttonText;
+      } else {
+        _handleScientificInput(buttonText);
       }
 
-      // Update result while typing
       if (buttonText != "=" && _equation.isNotEmpty) {
-        _calculateLiveResult();
+        _calculateResult(finalEval: false);
       }
     });
   }
 
-  void _calculateLiveResult() {
-    if (_equation.isEmpty) {
-      _result = "0";
-      return;
+  void _handleScientificInput(String btn) {
+    switch (btn) {
+      case "sin": _equation += _isSecondFunction ? "asin(" : "sin("; break;
+      case "cos": _equation += _isSecondFunction ? "acos(" : "cos("; break;
+      case "tan": _equation += _isSecondFunction ? "atan(" : "tan("; break;
+      case "log": _equation += _isSecondFunction ? "10^" : "log("; break;
+      case "ln": _equation += _isSecondFunction ? "exp(" : "ln("; break;
+      case "√": _equation += _isSecondFunction ? "cbrt(" : "sqrt("; break;
+      case "x²": _equation += "^2"; break;
+      case "x³": _equation += "^3"; break;
+      case "xʸ": _equation += "^"; break;
+      case "π": _equation += "pi"; break;
+      case "e": _equation += "e"; break;
+      default: _equation += btn;
     }
+    if (_isSecondFunction) _isSecondFunction = false;
+  }
 
-    String expression = _equation;
-    expression = expression.replaceAll('×', '*');
-    expression = expression.replaceAll('÷', '/');
-    expression = expression.replaceAll('√', 'sqrt');
-    expression = expression.replaceAll('π', '3.14159265359');
-    expression = expression.replaceAll('e', '2.71828182846');
-
+  void _calculateResult({required bool finalEval}) {
     try {
+      String expression = _equation
+          .replaceAll('×', '*')
+          .replaceAll('÷', '/')
+          .replaceAll('√', 'sqrt')
+          .replaceAll('%', '/100');
+
       Parser p = Parser();
       Expression exp = p.parse(expression);
       ContextModel cm = ContextModel();
       double eval = exp.evaluate(EvaluationType.REAL, cm);
 
-      if (eval.isNaN || eval.isInfinite) {
-        _result = "Error";
+      String formatted = _formatResult(eval);
+      if (finalEval) {
+        _equation = formatted;
+        _result = "";
       } else {
-        if (eval == eval.roundToDouble()) {
-          _result = eval.round().toString();
-        } else {
-          _result = eval.toStringAsFixed(8).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
-        }
+        _result = formatted;
       }
     } catch (e) {
-      _result = "0";
+      if (finalEval) _result = "Error";
     }
   }
 
-  void _calculateResult() {
-    if (_equation.isEmpty) {
-      _result = "0";
-      return;
-    }
-
-    String expression = _equation;
-    expression = expression.replaceAll('×', '*');
-    expression = expression.replaceAll('÷', '/');
-    expression = expression.replaceAll('√', 'sqrt');
-    expression = expression.replaceAll('π', '3.14159265359');
-    expression = expression.replaceAll('e', '2.71828182846');
-
-    try {
-      Parser p = Parser();
-      Expression exp = p.parse(expression);
-      ContextModel cm = ContextModel();
-      double eval = exp.evaluate(EvaluationType.REAL, cm);
-
-      if (eval.isNaN || eval.isInfinite) {
-        _result = "Error";
-      } else {
-        if (eval == eval.roundToDouble()) {
-          _result = eval.round().toString();
-        } else {
-          _result = eval.toStringAsFixed(8).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
-        }
-      }
-    } catch (e) {
-      _result = "Error";
-    }
+  String _formatResult(double eval) {
+    if (eval.isNaN || eval.isInfinite) return "Error";
+    if (eval == eval.roundToDouble()) return eval.round().toString();
+    return eval.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
   }
 
-  void _copyResult() {
-    Clipboard.setData(ClipboardData(text: _result));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Copied to clipboard!"), duration: Duration(seconds: 1)),
-    );
-  }
-
-  Widget _buildButton(String text, Color color, {double flex = 1, Color? textColor}) {
+  Widget _buildButton(String text, Color color, {double flex = 1, Color? textColor, double? height}) {
     return Expanded(
       flex: flex.toInt(),
       child: Padding(
@@ -176,19 +103,21 @@ class _StandardCalculatorState extends State<StandardCalculator> {
         child: Material(
           color: color,
           borderRadius: BorderRadius.circular(12),
-          elevation: 2,
           child: InkWell(
             onTap: () => _buttonPressed(text),
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              height: 65,
+              height: height ?? 60,
               alignment: Alignment.center,
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: text.length > 2 ? 18 : 24,
-                  fontWeight: FontWeight.w500,
-                  color: textColor ?? Colors.white,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textColor ?? Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -201,174 +130,121 @@ class _StandardCalculatorState extends State<StandardCalculator> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("Calculator"),
-        centerTitle: true,
-        elevation: 0,
         backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(_isScientific ? "Scientific" : "Standard"),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            child: Chip(
-              label: Text(
-                _isRadians ? "RAD" : "DEG",
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-              backgroundColor: const Color(0xFF6366F1).withOpacity(0.2),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.copy),
-            onPressed: _copyResult,
+          Switch(
+            value: _isScientific,
+            onChanged: (v) => setState(() => _isScientific = v),
+            activeColor: const Color(0xFF6366F1),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Display Section
-          Container(
-            padding: const EdgeInsets.all(24),
-            alignment: Alignment.bottomRight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // Equation Display
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  reverse: true,
-                  child: Text(
-                    _equation.isEmpty ? " " : _equation,
-                    style: TextStyle(
-                      fontSize: 28,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                      fontWeight: FontWeight.w400,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Display
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                alignment: Alignment.bottomRight,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: Text(_equation, style: TextStyle(fontSize: 30, color: isDark ? Colors.grey : Colors.blueGrey)),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(_result, style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                // Result Display
-                Text(
-                  _result,
-                  style: const TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+            ),
+
+            // Scientific Panel (Only shown if _isScientific is true)
+            if (_isScientific)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Column(
+                  children: [
+                    Row(children: [
+                      _buildButton("2nd", _isSecondFunction ? Colors.orange : Colors.indigo, height: 45),
+                      _buildButton("deg", Colors.blueGrey, height: 45),
+                      _buildButton("sin", Colors.deepPurple, height: 45),
+                      _buildButton("cos", Colors.deepPurple, height: 45),
+                      _buildButton("tan", Colors.deepPurple, height: 45),
+                    ]),
+                    Row(children: [
+                      _buildButton("xʸ", Colors.indigo, height: 45),
+                      _buildButton("log", Colors.indigo, height: 45),
+                      _buildButton("ln", Colors.indigo, height: 45),
+                      _buildButton("(", Colors.blueGrey, height: 45),
+                      _buildButton(")", Colors.blueGrey, height: 45),
+                    ]),
+                    Row(children: [
+                      _buildButton("√", Colors.teal, height: 45),
+                      _buildButton("x²", Colors.teal, height: 45),
+                      _buildButton("π", Colors.teal, height: 45),
+                      _buildButton("e", Colors.teal, height: 45),
+                      _buildButton("%", Colors.orange, height: 45),
+                    ]),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
 
-          const Divider(thickness: 1),
+            const Divider(),
 
-          // Scientific Functions Row 1
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                _buildButton("sin", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("cos", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("tan", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("log", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("ln", const Color(0xFF8B5CF6), flex: 1),
-              ],
-            ),
-          ),
-
-          // Scientific Functions Row 2
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                _buildButton("√", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("x²", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("x³", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("1/x", const Color(0xFF8B5CF6), flex: 1),
-                _buildButton("rad", const Color(0xFF8B5CF6), flex: 1),
-              ],
-            ),
-          ),
-
-          // Constants Row
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                _buildButton("π", const Color(0xFF10B981), flex: 1),
-                _buildButton("e", const Color(0xFF10B981), flex: 1),
-                _buildButton("(", const Color(0xFF6366F1), flex: 1),
-                _buildButton(")", const Color(0xFF6366F1), flex: 1),
-                _buildButton("%", const Color(0xFFF59E0B), flex: 1),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Main Calculator Buttons
-          Expanded(
-            child: Padding(
+            // Main Pad
+            Container(
               padding: const EdgeInsets.all(8),
+              height: size.height * (_isScientific ? 0.4 : 0.55),
               child: Column(
                 children: [
-                  // Row 1: AC, C, ÷
-                  Row(
-                    children: [
-                      _buildButton("AC", const Color(0xFFEF4444), flex: 1),
-                      _buildButton("C", const Color(0xFFF59E0B), flex: 1),
-                      _buildButton("÷", const Color(0xFF6366F1), flex: 1),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Row 2: 7, 8, 9, ×
-                  Row(
-                    children: [
-                      _buildButton("7", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("8", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("9", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("×", const Color(0xFF6366F1), flex: 1),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Row 3: 4, 5, 6, -
-                  Row(
-                    children: [
-                      _buildButton("4", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("5", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("6", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("-", const Color(0xFF6366F1), flex: 1),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Row 4: 1, 2, 3, +
-                  Row(
-                    children: [
-                      _buildButton("1", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("2", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("3", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("+", const Color(0xFF6366F1), flex: 1),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Row 5: 0, ., =
-                  Row(
-                    children: [
-                      _buildButton("0", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 2, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton(".", isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0), flex: 1, textColor: isDark ? Colors.white : Colors.black87),
-                      _buildButton("=", const Color(0xFF22C55E), flex: 1),
-                    ],
-                  ),
+                  Expanded(child: Row(children: [
+                    _buildButton("AC", Colors.redAccent),
+                    _buildButton("C", Colors.orangeAccent),
+                    _buildButton("÷", const Color(0xFF6366F1)),
+                  ])),
+                  _buildNumericRow(["7", "8", "9", "×"], isDark),
+                  _buildNumericRow(["4", "5", "6", "-"], isDark),
+                  _buildNumericRow(["1", "2", "3", "+"], isDark),
+                  Expanded(child: Row(children: [
+                    _buildButton("0", isDark ? Colors.blueGrey.shade800 : Colors.white, flex: 2, textColor: isDark ? Colors.white : Colors.black),
+                    _buildButton(".", isDark ? Colors.blueGrey.shade800 : Colors.white, textColor: isDark ? Colors.white : Colors.black),
+                    _buildButton("=", Colors.green),
+                  ])),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNumericRow(List<String> texts, bool isDark) {
+    return Expanded(
+      child: Row(
+        children: texts.map((t) {
+          bool isOp = ["×", "-", "+"].contains(t);
+          return _buildButton(
+            t,
+            isOp ? const Color(0xFF6366F1) : (isDark ? Colors.blueGrey.shade800 : Colors.white),
+            textColor: isOp ? Colors.white : (isDark ? Colors.white : Colors.black),
+          );
+        }).toList(),
       ),
     );
   }
