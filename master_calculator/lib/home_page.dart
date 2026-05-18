@@ -17,6 +17,7 @@ import 'calculators/gst_calculator.dart';
 import 'calculators/sip_calculator.dart';
 import 'calculators/currency_converter.dart';
 import 'calculators/unit_converter.dart';
+import 'calculators/bhumi_calculator.dart';
 
 // Import additional pages
 import 'pages/history_page.dart';
@@ -81,6 +82,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       "discount": "Discount",
       "loan": "Loan",
       "standardSub": "Arithmetic",
+      "Bhumi Calculator": "Bhumi Calculator",
+      "BhumiSub": "Land Measurement",
       "ageSub": "Exact Birthday",
       "emiSub": "Loan Planner",
       "bmiSub": "Fitness Index",
@@ -133,6 +136,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       "discount": "छूट",
       "loan": "ऋण",
       "standardSub": "अंकगणित",
+      "Bhumi Calculator": "भूमि कैलकुलेटर",
+      "BhumiSub": "जमीन की माप",
       "ageSub": "सटीक जन्मदिन",
       "emiSub": "ऋण योजनाकार",
       "bmiSub": "फिटनेस सूचकांक",
@@ -146,7 +151,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   };
 
   String getText(String key) {
-    return _translations[_language]?[key] ?? _translations["English"]![key]!;
+
+    return _translations[_language]?[key] ??
+        _translations["English"]?[key] ??
+        key;
   }
 
   void toggleLanguage() {
@@ -250,6 +258,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             color: Colors.blue,
             page: const StandardCalculator(),
           ),
+
+          CalculatorItem(
+            title: getText("Bhumi Calculator"),
+            subtitle: getText("BhumiSub"),
+            icon: Icons.landscape,
+            color: Colors.green,
+            page: const BhumiCalculator(),
+          ),
+
           CalculatorItem(
             title: getText("age"),
             subtitle: getText("ageSub"),
