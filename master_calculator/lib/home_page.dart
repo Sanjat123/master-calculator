@@ -282,12 +282,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             page: const EMICalculator(),
           ),
           CalculatorItem(
-            title: getText("bmi"),
-            subtitle: getText("bmiSub"),
-            icon: Icons.fitness_center,
-            color: Colors.red,
-            page: const BMICalculator(),
+            title: getText("loan"),
+            subtitle: getText("loanSub"),
+            icon: Icons.money,
+            color: Colors.purple,
+            page: const LoanCalculator(),
           ),
+
           CalculatorItem(
             title: getText("gst"),
             subtitle: getText("gstSub"),
@@ -295,6 +296,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             color: Colors.pink,
             page: const GSTCalculator(),
           ),
+
+          CalculatorItem(
+            title: getText("discount"),
+            subtitle: getText("discountSub"),
+            icon: Icons.local_offer,
+            color: Colors.cyan,
+            page: const DiscountCalculator(),
+          ),
+
+          CalculatorItem(
+            title: getText("bmi"),
+            subtitle: getText("bmiSub"),
+            icon: Icons.fitness_center,
+            color: Colors.red,
+            page: const BMICalculator(),
+          ),
+
           CalculatorItem(
             title: getText("sip"),
             subtitle: getText("sipSub"),
@@ -316,20 +334,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             color: Colors.indigo,
             page: const UnitConverter(),
           ),
-          CalculatorItem(
-            title: getText("discount"),
-            subtitle: getText("discountSub"),
-            icon: Icons.local_offer,
-            color: Colors.cyan,
-            page: const DiscountCalculator(),
-          ),
-          CalculatorItem(
-            title: getText("loan"),
-            subtitle: getText("loanSub"),
-            icon: Icons.money,
-            color: Colors.purple,
-            page: const LoanCalculator(),
-          ),
+
         ];
 
         return Scaffold(
