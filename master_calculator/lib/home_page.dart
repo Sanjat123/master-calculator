@@ -262,7 +262,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           CalculatorItem(
             title: getText("Bhumi Calculator"),
             subtitle: getText("BhumiSub"),
-            icon: Icons.landscape,
+            icon: Icons.agriculture_rounded,
             color: Colors.green,
             page: const BhumiCalculator(),
           ),
