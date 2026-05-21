@@ -18,6 +18,7 @@ import 'calculators/sip_calculator.dart';
 import 'calculators/currency_converter.dart';
 import 'calculators/unit_converter.dart';
 import 'calculators/bhumi_calculator.dart';
+import 'calculators/shg_calculator.dart';
 
 // Import additional pages
 import 'pages/history_page.dart';
@@ -265,6 +266,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             icon: Icons.agriculture_rounded,
             color: Colors.green,
             page: const BhumiCalculator(),
+          ),
+
+          CalculatorItem(
+            title: "Jeevika Calculator",
+            subtitle: "Samooh aur Byaj Hisab",
+            icon: Icons.groups,
+            color: Colors.indigo,
+            page: const SHGCalculator(),
           ),
 
           CalculatorItem(
